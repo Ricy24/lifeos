@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: lifeos-finance-api
+    env: docker
+    region: ohio # Adjust based on Neon.tech region for lower latency
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DEBUG
+        value: "false"
+      - key: CRON_SECRET
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_ALLOWED_USER_ID
+        sync: false
+      - key: TELEGRAM_WEBHOOK_SECRET
+        sync: false
+      - key: TELEGRAM_WEBHOOK_URL
+        sync: false
+      - key: AI_PROVIDER
+        value: "gemini"
+      - key: GEMINI_API_KEY
+        sync: false
+      # The following must be set in the Render Dashboard securely:
+      # - DATABASE_URL
+      # - SECRET_KEY
+      # - ADMIN_EMAIL
+      # - ADMIN_PASSWORD
