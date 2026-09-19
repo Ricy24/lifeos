@@ -117,26 +117,40 @@ async def test_v2_auth_register_login_rotation_and_logout(client: AsyncClient, d
     )
     assert me_resp2.status_code == 200
 
-    # 4. Rotation check: Old refresh token must be rejected upon reuse
+    # 4. Rotation check: Old refresh token must be rejected upon reuse AND trigger full session revocation
     reused_resp = await client.post(
         "/api/v2/auth/refresh",
         json={"refresh_token": refresh_token_1},
     )
     assert reused_resp.status_code == 401
-    assert "revoked" in reused_resp.json()["detail"].lower()
+    assert "replay attack" in reused_resp.json()["detail"].lower()
 
-    # 5. Logout
+    # Verify that refresh_token_2 was ALSO revoked due to replay attack detection
+    compromised_resp = await client.post(
+        "/api/v2/auth/refresh",
+        json={"refresh_token": refresh_token_2},
+    )
+    assert compromised_resp.status_code == 401
+
+    # 5. New login works and can be logged out
+    login_resp_2 = await client.post(
+        "/api/v2/auth/login",
+        json={"email": unique_email, "password": password},
+    )
+    assert login_resp_2.status_code == 200
+    fresh_refresh = login_resp_2.json()["refresh_token"]
+
     logout_resp = await client.post(
         "/api/v2/auth/logout",
-        json={"refresh_token": refresh_token_2},
+        json={"refresh_token": fresh_refresh},
     )
     assert logout_resp.status_code == 200
     assert logout_resp.json()["message"] == "Successfully logged out"
 
-    # 6. Verify logged out token cannot refresh
+    # Verify logged out token cannot refresh
     post_logout_resp = await client.post(
         "/api/v2/auth/refresh",
-        json={"refresh_token": refresh_token_2},
+        json={"refresh_token": fresh_refresh},
     )
     assert post_logout_resp.status_code == 401
 
@@ -144,8 +158,9 @@ async def test_v2_auth_register_login_rotation_and_logout(client: AsyncClient, d
 @pytest.mark.asyncio
 async def test_user_isolation_repository_ab(db_session: AsyncSession):
     """
-    Test tenant isolation at the Repository layer between User A and User B.
-    User B must never be able to view, query, update, or soft-delete User A's data.
+    Test tenant isolation at the Repository layer bidirectionally:
+    - User B cannot view, query, update, or soft-delete User A's data.
+    - User A cannot view, query, update, or soft-delete User B's data.
     """
     # 1. Create User A and User B
     user_a = User(
@@ -173,7 +188,7 @@ async def test_user_isolation_repository_ab(db_session: AsyncSession):
     repo_goal_a = GoalRepository(db_session, user_a.id)
     repo_goal_b = GoalRepository(db_session, user_b.id)
 
-    # 3. User A creates an Account, a Transaction, and a Goal
+    # 3. User A creates Account, Transaction, Goal
     acc_a = await repo_acc_a.create(
         Account(
             name="User A Secret Vault",
@@ -189,7 +204,7 @@ async def test_user_isolation_repository_ab(db_session: AsyncSession):
             amount=Decimal("50000.00"),
             transaction_type=TransactionType.EXPENSE,
             category="confidential",
-            description="User A classified payment",
+            description="User A payment",
         )
     )
 
@@ -203,41 +218,84 @@ async def test_user_isolation_repository_ab(db_session: AsyncSession):
         )
     )
 
-    # 4. User B attempts read operations on User A's data via Repository
+    # User B creates Account, Transaction, Goal
+    acc_b = await repo_acc_b.create(
+        Account(
+            name="User B Checking",
+            account_type=AccountType.CASH,
+            balance=Decimal("320000.00"),
+            currency="COP",
+        )
+    )
+
+    tx_b = await repo_tx_b.create(
+        Transaction(
+            account_id=acc_b.id,
+            amount=Decimal("15000.00"),
+            transaction_type=TransactionType.EXPENSE,
+            category="food",
+            description="User B payment",
+        )
+    )
+
+    goal_b = await repo_goal_b.create(
+        Goal(
+            name="User B Laptop",
+            target_amount=Decimal("5000000.00"),
+            current_amount=Decimal("1000000.00"),
+            category=GoalCategory.PURCHASE,
+            status=GoalStatus.ACTIVE,
+        )
+    )
+
+    # 4. User B cannot read, update, or delete User A's data
     assert await repo_acc_b.get_by_id(acc_a.id) is None
     assert acc_a.id not in [acc.id for acc in await repo_acc_b.list()]
-    assert acc_a.id not in [acc.id for acc in await repo_acc_b.get_active_accounts()]
+    assert await repo_acc_b.update(acc_a.id, name="Hacked A Account") is None
+    assert await repo_acc_b.soft_delete(acc_a.id) is False
 
     assert await repo_tx_b.get_by_id(tx_a.id) is None
     assert tx_a.id not in [t.id for t in await repo_tx_b.list()]
-    assert tx_a.id not in [t.id for t in await repo_tx_b.get_recent()]
+    assert await repo_tx_b.update(tx_a.id, description="Hacked A Tx") is None
+    assert await repo_tx_b.soft_delete(tx_a.id) is False
 
     assert await repo_goal_b.get_by_id(goal_a.id) is None
     assert goal_a.id not in [g.id for g in await repo_goal_b.list()]
-    assert goal_a.id not in [g.id for g in await repo_goal_b.get_active_goals()]
+    assert await repo_goal_b.update(goal_a.id, name="Hacked A Goal") is None
+    assert await repo_goal_b.soft_delete(goal_a.id) is False
 
-    # 5. User B attempts write / mutation on User A's data
-    update_res = await repo_acc_b.update(acc_a.id, name="Compromised Account", balance=Decimal("0.00"))
-    assert update_res is None
+    # 5. User A cannot read, update, or delete User B's data (Un caso por entidad)
+    assert await repo_acc_a.get_by_id(acc_b.id) is None
+    assert acc_b.id not in [acc.id for acc in await repo_acc_a.list()]
+    assert await repo_acc_a.update(acc_b.id, name="Hacked B Account") is None
+    assert await repo_acc_a.soft_delete(acc_b.id) is False
 
-    # Verify Account A is unchanged
-    refreshed_acc_a = await repo_acc_a.get_by_id(acc_a.id)
-    assert refreshed_acc_a.name == "User A Secret Vault"
-    assert refreshed_acc_a.balance == Decimal("9500000.00")
+    assert await repo_tx_a.get_by_id(tx_b.id) is None
+    assert tx_b.id not in [t.id for t in await repo_tx_a.list()]
+    assert await repo_tx_a.update(tx_b.id, description="Hacked B Tx") is None
+    assert await repo_tx_a.soft_delete(tx_b.id) is False
 
-    # User B attempts soft delete
-    delete_res = await repo_acc_b.soft_delete(acc_a.id)
-    assert delete_res is False
+    assert await repo_goal_a.get_by_id(goal_b.id) is None
+    assert goal_b.id not in [g.id for g in await repo_goal_a.list()]
+    assert await repo_goal_a.update(goal_b.id, name="Hacked B Goal") is None
+    assert await repo_goal_a.soft_delete(goal_b.id) is False
 
-    refreshed_acc_a_after = await repo_acc_a.get_by_id(acc_a.id)
-    assert refreshed_acc_a_after.deleted_at is None
+    # 6. Verify original records are unchanged
+    refreshed_a = await repo_acc_a.get_by_id(acc_a.id)
+    assert refreshed_a.name == "User A Secret Vault"
+    assert refreshed_a.deleted_at is None
+
+    refreshed_b = await repo_acc_b.get_by_id(acc_b.id)
+    assert refreshed_b.name == "User B Checking"
+    assert refreshed_b.deleted_at is None
 
 
 @pytest.mark.asyncio
 async def test_user_isolation_api_ab(client: AsyncClient, db_session: AsyncSession):
     """
     Test tenant isolation via HTTP API endpoints between User A and User B.
-    User B cannot retrieve or delete User A's accounts or transactions.
+    User A cannot read, update, or delete User B's accounts, transactions, or goals.
+    User B cannot read, update, or delete User A's accounts, transactions, or goals.
     """
     # 1. Create User A & User B
     user_a = User(
@@ -258,17 +316,16 @@ async def test_user_isolation_api_ab(client: AsyncClient, db_session: AsyncSessi
     token_a = create_access_token_v2(user_a.id)
     token_b = create_access_token_v2(user_b.id)
 
-    # 2. User A creates Account
-    acc_res = await client.post(
+    # 2. User A creates Account and Transaction
+    acc_a_res = await client.post(
         "/api/v1/accounts",
         headers={"Authorization": f"Bearer {token_a}"},
         json={"name": "User A Bank", "account_type": "bank", "balance": 1500000.0},
     )
-    assert acc_res.status_code == 201, acc_res.text
-    account_a_id = acc_res.json()["id"]
+    assert acc_a_res.status_code == 201, acc_a_res.text
+    account_a_id = acc_a_res.json()["id"]
 
-    # 3. User A creates Transaction
-    tx_res = await client.post(
+    tx_a_res = await client.post(
         "/api/v1/transactions",
         headers={"Authorization": f"Bearer {token_a}"},
         json={
@@ -279,26 +336,78 @@ async def test_user_isolation_api_ab(client: AsyncClient, db_session: AsyncSessi
             "description": "User A groceries",
         },
     )
-    assert tx_res.status_code == 201, tx_res.text
-    tx_a_id = tx_res.json()["id"]
+    assert tx_a_res.status_code == 201, tx_a_res.text
+    tx_a_id = tx_a_res.json()["id"]
 
-    # 4. User B tries to read Account A -> 404
-    b_acc_res = await client.get(
-        f"/api/v1/accounts/{account_a_id}",
-        headers={"Authorization": f"Bearer {token_b}"},
+    goal_a_res = await client.post(
+        "/api/v1/goals",
+        headers={"Authorization": f"Bearer {token_a}"},
+        json={
+            "name": "User A Vacation",
+            "target_amount": 5000000.0,
+            "category": "travel",
+        },
     )
-    assert b_acc_res.status_code == 404
+    assert goal_a_res.status_code == 201, goal_a_res.text
+    goal_a_id = goal_a_res.json()["id"]
 
-    # 5. User B tries to read Transaction A -> 404
-    b_tx_res = await client.get(
-        f"/api/v1/transactions/{tx_a_id}",
+    # 3. User B creates Account, Transaction, Goal
+    acc_b_res = await client.post(
+        "/api/v1/accounts",
         headers={"Authorization": f"Bearer {token_b}"},
+        json={"name": "User B Bank", "account_type": "bank", "balance": 750000.0},
     )
-    assert b_tx_res.status_code == 404
+    assert acc_b_res.status_code == 201, acc_b_res.text
+    account_b_id = acc_b_res.json()["id"]
 
-    # 6. User B tries to delete Transaction A -> 404
-    b_del_res = await client.delete(
-        f"/api/v1/transactions/{tx_a_id}",
+    tx_b_res = await client.post(
+        "/api/v1/transactions",
         headers={"Authorization": f"Bearer {token_b}"},
+        json={
+            "account_id": account_b_id,
+            "amount": 12000.0,
+            "transaction_type": "expense",
+            "category": "food",
+            "description": "User B lunch",
+        },
     )
-    assert b_del_res.status_code == 404
+    assert tx_b_res.status_code == 201, tx_b_res.text
+    tx_b_id = tx_b_res.json()["id"]
+
+    goal_b_res = await client.post(
+        "/api/v1/goals",
+        headers={"Authorization": f"Bearer {token_b}"},
+        json={
+            "name": "User B Phone",
+            "target_amount": 2000000.0,
+            "category": "purchase",
+        },
+    )
+    assert goal_b_res.status_code == 201, goal_b_res.text
+    goal_b_id = goal_b_res.json()["id"]
+
+    # 4. User B cannot read, update, or delete User A's entities (404)
+    assert (await client.get(f"/api/v1/accounts/{account_a_id}", headers={"Authorization": f"Bearer {token_b}"})).status_code == 404
+    assert (await client.put(f"/api/v1/accounts/{account_a_id}", headers={"Authorization": f"Bearer {token_b}"}, json={"name": "Hack"})).status_code == 404
+    assert (await client.delete(f"/api/v1/accounts/{account_a_id}", headers={"Authorization": f"Bearer {token_b}"})).status_code == 404
+
+    assert (await client.get(f"/api/v1/transactions/{tx_a_id}", headers={"Authorization": f"Bearer {token_b}"})).status_code == 404
+    assert (await client.put(f"/api/v1/transactions/{tx_a_id}", headers={"Authorization": f"Bearer {token_b}"}, json={"description": "Hack"})).status_code == 404
+    assert (await client.delete(f"/api/v1/transactions/{tx_a_id}", headers={"Authorization": f"Bearer {token_b}"})).status_code == 404
+
+    assert (await client.get(f"/api/v1/goals/{goal_a_id}", headers={"Authorization": f"Bearer {token_b}"})).status_code == 404
+    assert (await client.put(f"/api/v1/goals/{goal_a_id}", headers={"Authorization": f"Bearer {token_b}"}, json={"name": "Hack"})).status_code == 404
+    assert (await client.delete(f"/api/v1/goals/{goal_a_id}", headers={"Authorization": f"Bearer {token_b}"})).status_code == 404
+
+    # 5. User A cannot read, update, or delete User B's entities (404)
+    assert (await client.get(f"/api/v1/accounts/{account_b_id}", headers={"Authorization": f"Bearer {token_a}"})).status_code == 404
+    assert (await client.put(f"/api/v1/accounts/{account_b_id}", headers={"Authorization": f"Bearer {token_a}"}, json={"name": "Hack"})).status_code == 404
+    assert (await client.delete(f"/api/v1/accounts/{account_b_id}", headers={"Authorization": f"Bearer {token_a}"})).status_code == 404
+
+    assert (await client.get(f"/api/v1/transactions/{tx_b_id}", headers={"Authorization": f"Bearer {token_a}"})).status_code == 404
+    assert (await client.put(f"/api/v1/transactions/{tx_b_id}", headers={"Authorization": f"Bearer {token_a}"}, json={"description": "Hack"})).status_code == 404
+    assert (await client.delete(f"/api/v1/transactions/{tx_b_id}", headers={"Authorization": f"Bearer {token_a}"})).status_code == 404
+
+    assert (await client.get(f"/api/v1/goals/{goal_b_id}", headers={"Authorization": f"Bearer {token_a}"})).status_code == 404
+    assert (await client.put(f"/api/v1/goals/{goal_b_id}", headers={"Authorization": f"Bearer {token_a}"}, json={"name": "Hack"})).status_code == 404
+    assert (await client.delete(f"/api/v1/goals/{goal_b_id}", headers={"Authorization": f"Bearer {token_a}"})).status_code == 404

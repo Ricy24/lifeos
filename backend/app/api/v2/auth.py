@@ -5,7 +5,7 @@ Implements modern JWT pair (access + refresh with rotation and revocation).
 
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -171,9 +171,19 @@ async def refresh_v2(
 
     now = datetime.now(timezone.utc)
     if token_record.revoked_at is not None:
+        # Replay attack protection: revoke all remaining active sessions for this user
+        await db.execute(
+            update(RefreshToken)
+            .where(
+                RefreshToken.user_id == token_record.user_id,
+                RefreshToken.revoked_at.is_(None)
+            )
+            .values(revoked_at=now)
+        )
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token has already been revoked or used (possible replay attack)",
+            detail="Refresh token has already been revoked or used - potential replay attack. All sessions revoked.",
         )
 
     if token_record.expires_at <= now:

@@ -67,6 +67,20 @@ async def create_goal(
     await db.refresh(new_goal)
     return new_goal
 
+
+@router.get("/{goal_id}", response_model=GoalResponse)
+async def get_goal(
+    goal_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    result = await db.execute(select(Goal).where(Goal.id == goal_id, Goal.user_id == user.id))
+    goal = result.scalar_one_or_none()
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    return goal
+
+
 @router.put("/{goal_id}", response_model=GoalResponse)
 async def update_goal(
     goal_id: str,

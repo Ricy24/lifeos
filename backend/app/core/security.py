@@ -25,6 +25,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
+def get_jwt_secret() -> str:
+    """Return configured JWT secret."""
+    secret = settings.effective_jwt_secret
+    if not secret:
+        return settings.SECRET_KEY
+    return secret
+
+
 def create_access_token(
     data: dict,
     expires_delta: Optional[timedelta] = None
@@ -35,7 +43,7 @@ def create_access_token(
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode.update({"exp": expire, "type": "access"})
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    return jwt.encode(to_encode, get_jwt_secret(), algorithm=settings.JWT_ALGORITHM)
 
 
 def create_refresh_token(data: dict) -> str:
@@ -43,7 +51,7 @@ def create_refresh_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    return jwt.encode(to_encode, get_jwt_secret(), algorithm=settings.JWT_ALGORITHM)
 
 
 def decode_token(token: str) -> Optional[dict]:
@@ -51,7 +59,7 @@ def decode_token(token: str) -> Optional[dict]:
     try:
         payload = jwt.decode(
             token,
-            settings.SECRET_KEY,
+            get_jwt_secret(),
             algorithms=[settings.JWT_ALGORITHM]
         )
         return payload
@@ -87,7 +95,7 @@ def create_access_token_v2(
         "exp": expire,
         "type": "access_v2",
     })
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    return jwt.encode(to_encode, get_jwt_secret(), algorithm=settings.JWT_ALGORITHM)
 
 
 def create_refresh_token_v2(
@@ -108,6 +116,6 @@ def create_refresh_token_v2(
         "exp": expires_at,
         "type": "refresh_v2",
     }
-    raw_token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    raw_token = jwt.encode(to_encode, get_jwt_secret(), algorithm=settings.JWT_ALGORITHM)
     token_hash = hash_token(raw_token)
     return raw_token, token_hash, expires_at

@@ -16,8 +16,11 @@ import asyncio
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Schema management is owned by Alembic migrations
+    # 1. Startup Protection: fail with clear message if JWT_SECRET is missing
+    if not settings.effective_jwt_secret:
+        raise RuntimeError("Missing required JWT_SECRET (or SECRET_KEY). Application cannot start securely without a configured JWT signing secret.")
 
+    # Schema management is owned by Alembic migrations
     
     # Create default admin user if none exists
     from app.core.database import async_session_factory

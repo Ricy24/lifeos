@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     )
 
     # Security
+    JWT_SECRET: str = Field(
+        default="",
+        description="Primary JWT secret key"
+    )
     SECRET_KEY: str = Field(
         default="CHANGE-THIS-SECRET-KEY-IN-PRODUCTION",
         description="JWT signing key"
@@ -34,6 +38,15 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     CRON_SECRET: str = "change-this-cron-secret-in-production"
+
+    @property
+    def effective_jwt_secret(self) -> str:
+        """Returns configured JWT secret or SECRET_KEY if valid."""
+        if self.JWT_SECRET and self.JWT_SECRET.strip():
+            return self.JWT_SECRET.strip()
+        if self.SECRET_KEY and self.SECRET_KEY != "CHANGE-THIS-SECRET-KEY-IN-PRODUCTION":
+            return self.SECRET_KEY.strip()
+        return ""
 
     # Initial User
     ADMIN_EMAIL: str = "admin@lifeos.finance"
