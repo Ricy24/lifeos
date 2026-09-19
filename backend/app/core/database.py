@@ -72,7 +72,28 @@ async def get_db() -> AsyncSession:
             await session.close()
 
 
-async def init_db():
-    """Create all tables (for development). Use Alembic for production."""
+def is_safe_dev_environment(db_url: str) -> bool:
+    """Validate that the database connection points strictly to localhost dev/test DB."""
+    from urllib.parse import urlparse
+    # normalize scheme for urlparse
+    normalized = db_url
+    for prefix in ["postgresql+asyncpg://", "postgresql://", "sqlite+aiosqlite:///", "sqlite:///"]:
+        if normalized.startswith(prefix):
+            normalized = "http://" + normalized[len(prefix):]
+            break
+    parsed = urlparse(normalized)
+    hostname = parsed.hostname or "localhost"
+    dbname = parsed.path.lstrip("/").split("?")[0]
+    safe_hosts = {"localhost", "127.0.0.1"}
+    safe_dbs = {"lifeos_finance", "lifeos_test"}
+    return hostname in safe_hosts and (dbname in safe_dbs or dbname.endswith("_test"))
+
+
+async def safe_drop_all():
+    """Drop all tables only with guard of localhost host and development DB name."""
+    if not is_safe_dev_environment(settings.DATABASE_URL):
+        raise RuntimeError(
+            f"Blocked drop_all: {settings.DATABASE_URL} is not a verified local development/test database."
+        )
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(Base.metadata.drop_all)

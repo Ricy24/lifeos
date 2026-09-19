@@ -25,11 +25,18 @@ from app.models.transaction import Transaction
 from app.models.debt import Debt, DebtPayment
 from app.models.goal import Goal, WishlistItem
 from app.models.financial_config import FinancialConfig
+from app.models.financial_snapshot import FinancialSnapshot
+from app.models.work_session import WorkSession
 
 target_metadata = Base.metadata
 
 from app.core.config import settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+import os
+
+db_url = context.get_x_argument(as_dictionary=True).get("db_url")
+if not db_url:
+    db_url = os.getenv("DATABASE_URL", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", db_url)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -54,6 +61,7 @@ def run_migrations_offline() -> None:
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
+        compare_type=True,
         dialect_opts={"paramstyle": "named"},
     )
 
@@ -62,7 +70,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+    )
 
     with context.begin_transaction():
         context.run_migrations()

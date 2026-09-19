@@ -8,15 +8,15 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from app.core.config import settings
-from app.core.database import init_db, engine
-from app.api.v1 import auth, accounts, transactions, tasks, debts, goals, insights, telegram
+from app.core.database import engine
+from app.api.v1 import auth, accounts, transactions, tasks, debts, goals, insights, telegram, finance, work, forecast
 from app.services.telegram_bot_service import SmartTelegramBot, run_telegram_polling
 import asyncio
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create tables (development only, use Alembic in prod)
-    await init_db()
+    # Schema management is owned by Alembic migrations
+
     
     # Create default admin user if none exists
     from app.core.database import async_session_factory
@@ -62,7 +62,9 @@ app.include_router(goals.router, prefix="/api/v1")
 app.include_router(insights.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
 app.include_router(telegram.router, prefix="/api/v1")
-
+app.include_router(finance.router, prefix="/api/v1")
+app.include_router(work.router, prefix="/api/v1")
+app.include_router(forecast.router, prefix="/api/v1")
 
 @app.get("/health", tags=["System"])
 async def health_check():
