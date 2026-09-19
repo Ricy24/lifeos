@@ -17,7 +17,7 @@ val CyanAccent = Color(0xFF06B6D4)
 
 // Formerly hardcoded colors
 val TelegramBlue = Color(0xFF0088CC)
-val IndigoVariant1 = Color(0xFF4338CA)
-val IndigoVariant2 = Color(0xFF312E81)
-val IndigoVariant3 = Color(0xFF4F46E5)
-val IndigoVariant4 = Color(0xFF3730A3)
+val ChartGradientPrimaryStart = Color(0xFF4338CA)
+val ChartGradientPrimaryEnd = Color(0xFF312E81)
+val AccountCardGradientStart = Color(0xFF4F46E5)
+val AccountCardGradientEnd = Color(0xFF3730A3)

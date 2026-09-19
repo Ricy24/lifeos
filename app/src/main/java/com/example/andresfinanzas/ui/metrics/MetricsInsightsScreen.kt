@@ -29,6 +29,7 @@ import com.example.andresfinanzas.data.local.entities.TransactionEntity
 import com.example.andresfinanzas.ui.theme.ElectricIndigo
 import com.example.andresfinanzas.ui.theme.EmeraldGreen
 import com.example.andresfinanzas.ui.theme.RoseRed
+import com.example.andresfinanzas.ui.theme.TelegramBlue
 import java.text.NumberFormat
 import java.util.Locale
 

@@ -30,6 +30,8 @@ import com.example.andresfinanzas.data.local.entities.AccountEntity
 import com.example.andresfinanzas.ui.components.AddAccountDialog
 import com.example.andresfinanzas.ui.theme.ElectricIndigo
 import com.example.andresfinanzas.ui.theme.EmeraldGreen
+import com.example.andresfinanzas.ui.theme.AccountCardGradientStart
+import com.example.andresfinanzas.ui.theme.AccountCardGradientEnd
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -95,7 +97,7 @@ fun AccountsScreen(
                             .fillMaxWidth()
                             .background(
                                 Brush.horizontalGradient(
-                                    listOf(ElectricIndigo, IndigoVariant3, IndigoVariant4)
+                                    listOf(ElectricIndigo, AccountCardGradientStart, AccountCardGradientEnd)
                                 )
                             )
                             .padding(24.dp)

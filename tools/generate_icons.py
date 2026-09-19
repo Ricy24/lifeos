@@ -30,32 +30,67 @@ def clean_old_icons():
 def color_distance(c1, c2):
     return math.sqrt(sum((a - b)**2 for a, b in zip(c1[:3], c2[:3])))
 
-def make_transparent_and_silhouette(img, bg_color, threshold=40):
+def make_transparent(img, bg_color, threshold=40):
     data = img.getdata()
     new_data = []
-    silhouette_data = []
     
     for pixel in data:
         if pixel[3] == 0:
             new_data.append(pixel)
-            silhouette_data.append((0, 0, 0, 0))
             continue
             
         dist = color_distance(pixel, bg_color)
         if dist < threshold:
             new_data.append((pixel[0], pixel[1], pixel[2], 0))
-            silhouette_data.append((0, 0, 0, 0))
         else:
             new_data.append(pixel)
-            silhouette_data.append((pixel[0], pixel[1], pixel[2], 255))
             
     transparent_img = Image.new("RGBA", img.size)
     transparent_img.putdata(new_data)
     
-    silhouette_img = Image.new("RGBA", img.size)
-    silhouette_img.putdata(silhouette_data)
+    return transparent_img
+
+def create_preview_masks(bg_color_hex, fg_img):
+    # Base size for preview: 108x108
+    size = 108
+    bg_rgba = (int(bg_color_hex[1:3], 16), int(bg_color_hex[3:5], 16), int(bg_color_hex[5:7], 16), 255)
     
-    return transparent_img, silhouette_img
+    base_canvas = Image.new("RGBA", (size, size), bg_rgba)
+    logo_size = int(size * 0.61)
+    resized_logo = fg_img.resize((logo_size, logo_size), Image.Resampling.LANCZOS)
+    offset = (size - logo_size) // 2
+    base_canvas.paste(resized_logo, (offset, offset), resized_logo)
+    
+    preview = Image.new("RGBA", (size * 3 + 40, size + 20), (255, 255, 255, 0))
+    
+    # 1. Circle
+    mask_circle = Image.new("L", (size, size), 0)
+    draw_c = ImageDraw.Draw(mask_circle)
+    draw_c.ellipse((0, 0, size, size), fill=255)
+    circle_icon = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    circle_icon.paste(base_canvas, (0, 0), mask_circle)
+    
+    # 2. Rounded Square
+    mask_square = Image.new("L", (size, size), 0)
+    draw_s = ImageDraw.Draw(mask_square)
+    if hasattr(draw_s, 'rounded_rectangle'):
+        draw_s.rounded_rectangle((0, 0, size, size), radius=20, fill=255)
+    else:
+        draw_s.rectangle((0, 0, size, size), fill=255)
+    square_icon = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    square_icon.paste(base_canvas, (0, 0), mask_square)
+    
+    # 3. Teardrop / Squircle approx (fallback to normal square if advanced masking is complex)
+    squircle_icon = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    squircle_icon.paste(base_canvas, (0, 0), mask_square)
+    
+    preview.paste(circle_icon, (10, 10))
+    preview.paste(square_icon, (size + 20, 10))
+    preview.paste(squircle_icon, (size*2 + 30, 10))
+    
+    preview.save(os.path.join(PLAY_STORE_DIR, "preview_masks.png"), "PNG")
+    print("Generated docs/branding/preview_masks.png")
+
 
 def generate():
     if not os.path.exists(LOGO_PATH):
@@ -69,7 +104,10 @@ def generate():
     play_store.save(os.path.join(PLAY_STORE_DIR, "play_store_512.png"), "PNG")
     
     bg_color = img.getpixel((0, 0))
-    transparent_img, silhouette_img = make_transparent_and_silhouette(img, bg_color)
+    transparent_img = make_transparent(img, bg_color)
+    
+    # Previews
+    create_preview_masks("#d2f2fd", transparent_img)
     
     for density, size in ADAPTIVE_SIZES.items():
         canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
@@ -81,11 +119,7 @@ def generate():
         dir_path = os.path.join(RES_DIR, f"mipmap-{density}")
         os.makedirs(dir_path, exist_ok=True)
         canvas.save(os.path.join(dir_path, "ic_launcher_foreground.png"), "PNG")
-        
-        mono_canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-        resized_silhouette = silhouette_img.resize((logo_size, logo_size), Image.Resampling.LANCZOS)
-        mono_canvas.paste(resized_silhouette, (offset, offset), resized_silhouette)
-        mono_canvas.save(os.path.join(dir_path, "ic_launcher_monochrome.png"), "PNG")
+        # Monochrome is skipped because derivation from JPG is not perfectly clean.
 
     for density, size in LEGACY_SIZES.items():
         legacy = img.resize((size, size), Image.Resampling.LANCZOS)
@@ -100,7 +134,7 @@ def generate():
         round_icon.paste(legacy, (0, 0), mask)
         round_icon.save(os.path.join(dir_path, "ic_launcher_round.png"), "PNG")
         
-    print("All icons generated successfully.")
+    print("All icons generated successfully. Monochrome omitted due to non-vector source.")
 
 if __name__ == "__main__":
     clean_old_icons()

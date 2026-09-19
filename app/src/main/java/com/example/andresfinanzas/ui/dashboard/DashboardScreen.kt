@@ -31,6 +31,8 @@ import com.example.andresfinanzas.data.local.entities.TransactionEntity
 import com.example.andresfinanzas.ui.theme.ElectricIndigo
 import com.example.andresfinanzas.ui.theme.EmeraldGreen
 import com.example.andresfinanzas.ui.theme.RoseRed
+import com.example.andresfinanzas.ui.theme.ChartGradientPrimaryStart
+import com.example.andresfinanzas.ui.theme.ChartGradientPrimaryEnd
 import com.patrykandpatrick.vico.compose.chart.Chart
 import com.patrykandpatrick.vico.compose.chart.line.lineChart
 import com.patrykandpatrick.vico.core.entry.ChartEntryModelProducer
@@ -142,8 +144,8 @@ fun DashboardScreen(
                             Brush.linearGradient(
                                 listOf(
                                     ElectricIndigo,
-                                    IndigoVariant1,
-                                    IndigoVariant2
+                                    ChartGradientPrimaryStart,
+                                    ChartGradientPrimaryEnd
                                 )
                             )
                         )

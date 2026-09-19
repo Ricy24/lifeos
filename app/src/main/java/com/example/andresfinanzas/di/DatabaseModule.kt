@@ -10,6 +10,7 @@ import com.example.andresfinanzas.data.local.dao.DebtDao
 import com.example.andresfinanzas.data.local.dao.GoalDao
 import com.example.andresfinanzas.data.local.dao.WishlistDao
 import com.example.andresfinanzas.data.local.dao.TransactionDao
+import com.example.andresfinanzas.data.local.dao.WorkSessionDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -59,6 +60,26 @@ object DatabaseModule {
         }
     }
 
+    private val migration3To4 = object : Migration(3, 4) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("""CREATE TABLE IF NOT EXISTS work_sessions (
+                id TEXT NOT NULL PRIMARY KEY,
+                userId TEXT NOT NULL,
+                startTime INTEGER NOT NULL,
+                endTime INTEGER,
+                durationMinutes INTEGER,
+                income INTEGER NOT NULL,
+                activityType TEXT NOT NULL,
+                location TEXT,
+                notes TEXT,
+                version INTEGER NOT NULL,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                deletedAt INTEGER
+            )""")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideLifeOSDatabase(
@@ -68,7 +89,7 @@ object DatabaseModule {
             context,
             LifeOSDatabase::class.java,
             "lifeos_finance.db"
-        ).addMigrations(migration1To2, migration2To3).build()
+        ).addMigrations(migration1To2, migration2To3, migration3To4).build()
     }
 
     @Provides
@@ -94,5 +115,10 @@ object DatabaseModule {
     @Provides
     fun provideWishlistDao(database: LifeOSDatabase): WishlistDao {
         return database.wishlistDao()
+    }
+
+    @Provides
+    fun provideWorkSessionDao(database: LifeOSDatabase): WorkSessionDao {
+        return database.workSessionDao()
     }
 }
