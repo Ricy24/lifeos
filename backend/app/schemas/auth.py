@@ -4,6 +4,8 @@ LifeOS Finance — Auth Schemas
 
 from pydantic import BaseModel, EmailStr
 
+from app.schemas.common import ContractBaseModel
+
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -20,7 +22,7 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
-class UserResponse(BaseModel):
+class UserResponse(ContractBaseModel):
     id: str
     email: str
     full_name: str | None = None

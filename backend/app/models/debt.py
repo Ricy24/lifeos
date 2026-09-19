@@ -47,7 +47,7 @@ class Debt(AuditMixin, Base):
     # Core
     person_or_entity: Mapped[str] = mapped_column(String(255), nullable=False)
     debt_type: Mapped[str] = mapped_column(
-        Enum(DebtType, name="debt_type_enum"),
+        Enum(DebtType, name="debt_type_enum", values_callable=lambda x: [e.value for e in x]),
         default=DebtType.I_OWE,
     )
     original_amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
@@ -67,7 +67,7 @@ class Debt(AuditMixin, Base):
     # Priority & Status
     priority: Mapped[int] = mapped_column(Integer, default=3)  # 1=highest, 5=lowest
     status: Mapped[str] = mapped_column(
-        Enum(DebtStatus, name="debt_status_enum"),
+        Enum(DebtStatus, name="debt_status_enum", values_callable=lambda x: [e.value for e in x]),
         default=DebtStatus.PENDING,
     )
 

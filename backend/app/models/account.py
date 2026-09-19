@@ -43,7 +43,7 @@ class Account(AuditMixin, Base):
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     account_type: Mapped[str] = mapped_column(
-        Enum(AccountType, name="account_type_enum", create_constraint=True),
+        Enum(AccountType, name="account_type_enum", create_constraint=True, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=AccountType.CASH,
     )

@@ -55,7 +55,7 @@ class Goal(AuditMixin, Base):
     target_amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
     current_amount: Mapped[float] = mapped_column(Numeric(14, 2), default=0.0)
     category: Mapped[str] = mapped_column(
-        Enum(GoalCategory, name="goal_category_enum"),
+        Enum(GoalCategory, name="goal_category_enum", values_callable=lambda x: [e.value for e in x]),
         default=GoalCategory.PURCHASE,
     )
 
@@ -65,7 +65,7 @@ class Goal(AuditMixin, Base):
     priority: Mapped[int] = mapped_column(Integer, default=3)  # 1=highest
     target_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(
-        Enum(GoalStatus, name="goal_status_enum"),
+        Enum(GoalStatus, name="goal_status_enum", values_callable=lambda x: [e.value for e in x]),
         default=GoalStatus.ACTIVE,
     )
     notes: Mapped[str] = mapped_column(Text, nullable=True)
@@ -88,14 +88,18 @@ class Goal(AuditMixin, Base):
     @property
     def progress_percentage(self) -> float:
         """Calculate progress as a percentage."""
-        if self.target_amount <= 0:
+        target = float(self.target_amount or 0.0)
+        current = float(self.current_amount or 0.0)
+        if target <= 0:
             return 100.0
-        return min(100.0, (self.current_amount / self.target_amount) * 100)
+        return min(100.0, (current / target) * 100)
 
     @property
     def remaining_amount(self) -> float:
         """Calculate remaining amount needed."""
-        return max(0, self.target_amount - self.current_amount)
+        target = float(self.target_amount or 0.0)
+        current = float(self.current_amount or 0.0)
+        return max(0.0, target - current)
 
     @property
     def priority_score(self) -> int:
@@ -152,10 +156,14 @@ class WishlistItem(AuditMixin, Base):
 
     @property
     def progress_percentage(self) -> float:
-        if self.price <= 0:
+        price = float(self.price or 0.0)
+        saved = float(self.saved_amount or 0.0)
+        if price <= 0:
             return 100.0
-        return min(100.0, (self.saved_amount / self.price) * 100)
+        return min(100.0, (saved / price) * 100)
 
     @property
     def remaining_amount(self) -> float:
-        return max(0, self.price - self.saved_amount)
+        price = float(self.price or 0.0)
+        saved = float(self.saved_amount or 0.0)
+        return max(0.0, price - saved)

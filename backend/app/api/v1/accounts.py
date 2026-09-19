@@ -56,6 +56,57 @@ async def create_account(
     return new_account
 
 
+@router.get("/summary")
+async def get_accounts_summary(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """Summary of all accounts, total balance, net worth and canonical state."""
+    from app.application.finance_service import FinancialTruthService
+    from app.services.financial_engine import FinancialEngine
+    service = FinancialTruthService(db, user.id)
+    canonical = await service.get_canonical_state()
+    engine = FinancialEngine(db, user.id)
+    accounts = await engine.get_accounts_summary()
+    return {
+        "total_balance": canonical.available_cash,
+        "net_worth": canonical.net_worth,
+        "total_assets": canonical.total_assets,
+        "total_liabilities": canonical.total_liabilities,
+        "free_cash": canonical.free_cash,
+        "protected_cash": canonical.protected_cash,
+        "accounts": accounts,
+    }
+
+
+@router.get("/dashboard")
+async def get_dashboard(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """Complete financial dashboard powered by the Financial Truth Engine."""
+    from app.application.finance_service import FinancialTruthService
+    from app.services.financial_engine import FinancialEngine
+    service = FinancialTruthService(db, user.id)
+    canonical = await service.get_canonical_state()
+    engine = FinancialEngine(db, user.id)
+    legacy_dash = await engine.get_dashboard()
+    legacy_dash.update({
+        "available_cash": canonical.available_cash,
+        "total_assets": canonical.total_assets,
+        "total_liabilities": canonical.total_liabilities,
+        "net_worth": canonical.net_worth,
+        "monthly_obligations": canonical.monthly_obligations,
+        "protected_cash": canonical.protected_cash,
+        "free_cash": canonical.free_cash,
+        "financial_health_score": canonical.financial_health_score,
+        "financial_health_status": canonical.financial_health_status,
+        "health_assessment": canonical.health_assessment.to_dict(),
+        "protected_cash_breakdown": canonical.protected_cash_breakdown.to_dict(),
+    })
+    return legacy_dash
+
+
 @router.get("/{account_id}", response_model=AccountResponse)
 async def get_account(
     account_id: str,

@@ -83,7 +83,7 @@ class Transaction(AuditMixin, Base):
     # Core fields
     amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
     transaction_type: Mapped[str] = mapped_column(
-        Enum(TransactionType, name="transaction_type_enum"),
+        Enum(TransactionType, name="transaction_type_enum", values_callable=lambda x: [e.value for e in x]),
         nullable=False,
     )
     category: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -107,7 +107,7 @@ class Transaction(AuditMixin, Base):
 
     # Sync
     sync_status: Mapped[str] = mapped_column(
-        Enum(SyncStatus, name="sync_status_enum"),
+        Enum(SyncStatus, name="sync_status_enum", values_callable=lambda x: [e.value for e in x]),
         default=SyncStatus.SYNCED,
     )
 

@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
+from app.schemas.common import ContractBaseModel
+
 
 class TransactionCreate(BaseModel):
     amount: float = Field(..., gt=0, description="Transaction amount (positive)")
@@ -39,7 +41,7 @@ class TransactionUpdate(BaseModel):
     recurring_pattern: Optional[str] = None
 
 
-class TransactionResponse(BaseModel):
+class TransactionResponse(ContractBaseModel):
     id: str
     user_id: str
     account_id: Optional[str] = None

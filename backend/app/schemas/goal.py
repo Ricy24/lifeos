@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
 
+from app.schemas.common import ContractBaseModel
+
 
 class GoalCreate(BaseModel):
     name: str = Field(..., max_length=255)
@@ -34,7 +36,7 @@ class GoalUpdate(BaseModel):
     notes: Optional[str] = None
 
 
-class GoalResponse(BaseModel):
+class GoalResponse(ContractBaseModel):
     id: str
     user_id: str
     name: str
@@ -84,7 +86,7 @@ class WishlistItemUpdate(BaseModel):
     notes: Optional[str] = None
 
 
-class WishlistItemResponse(BaseModel):
+class WishlistItemResponse(ContractBaseModel):
     id: str
     user_id: str
     name: str

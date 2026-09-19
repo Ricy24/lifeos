@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
+from decimal import Decimal
 import uuid
 
 from app.core.database import get_db
@@ -100,14 +101,57 @@ async def create_transaction(
 
         # 3. Update Account Balance
         if account:
-            if tx_in.transaction_type == TransactionType.INCOME:
-                account.balance += tx_in.amount
-            elif tx_in.transaction_type == TransactionType.EXPENSE:
-                account.balance -= tx_in.amount
+            amount_dec = Decimal(str(tx_in.amount))
+            bal_dec = Decimal(str(account.balance or 0.0))
+            tx_type_str = str(tx_in.transaction_type).lower()
+            if tx_type_str in ["income", TransactionType.INCOME.value]:
+                account.balance = bal_dec + amount_dec
+            elif tx_type_str in ["expense", TransactionType.EXPENSE.value]:
+                account.balance = bal_dec - amount_dec
 
     await db.commit()
     await db.refresh(new_tx)
     return new_tx
+
+
+@router.get("/{tx_id}", response_model=TransactionResponse)
+async def get_transaction(
+    tx_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get a single transaction by ID."""
+    result = await db.execute(
+        select(Transaction).where(Transaction.id == tx_id, Transaction.user_id == user.id)
+    )
+    tx = result.scalar_one_or_none()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return tx
+
+
+@router.put("/{tx_id}", response_model=TransactionResponse)
+async def update_transaction(
+    tx_id: str,
+    tx_in: TransactionUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Update an existing transaction."""
+    result = await db.execute(
+        select(Transaction).where(Transaction.id == tx_id, Transaction.user_id == user.id)
+    )
+    tx = result.scalar_one_or_none()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    update_data = tx_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(tx, field, value)
+
+    await db.commit()
+    await db.refresh(tx)
+    return tx
 
 
 @router.delete("/{tx_id}", status_code=status.HTTP_204_NO_CONTENT)

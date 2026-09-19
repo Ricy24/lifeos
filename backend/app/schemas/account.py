@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field
 
+from app.schemas.common import ContractBaseModel
+
 
 class AccountCreate(BaseModel):
     name: str = Field(..., max_length=100)
@@ -31,7 +33,7 @@ class AccountUpdate(BaseModel):
     include_in_total: Optional[bool] = None
 
 
-class AccountResponse(BaseModel):
+class AccountResponse(ContractBaseModel):
     id: str
     user_id: str
     name: str

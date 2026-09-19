@@ -61,7 +61,7 @@ class FinancialEngine:
                 "id": a.id,
                 "name": a.name,
                 "type": a.account_type,
-                "balance": a.balance,
+                "balance": float(a.balance),
                 "currency": a.currency,
                 "color": a.color,
                 "icon": a.icon,
@@ -164,11 +164,12 @@ class FinancialEngine:
             }
 
         today = await self.get_today_summary()
-        earned = today["total_income"]
-        target = config.daily_target
-        remaining = max(0, target - earned)
-        percentage = min(100, (earned / target * 100)) if target > 0 else 0
-        hours_needed = remaining / config.hourly_rate if config.hourly_rate > 0 else 0
+        earned = float(today["total_income"])
+        target = float(config.daily_target)
+        hourly_rate = float(config.hourly_rate)
+        remaining = max(0.0, target - earned)
+        percentage = min(100.0, (earned / target * 100)) if target > 0 else 0.0
+        hours_needed = remaining / hourly_rate if hourly_rate > 0 else 0.0
 
         return {
             "target": target,
@@ -283,14 +284,14 @@ class FinancialEngine:
         )
         debts = result.scalars().all()
 
-        total = sum(d.remaining_amount for d in debts)
+        total = sum(float(d.remaining_amount) for d in debts)
         urgent = sum(
             1 for d in debts
             if d.priority <= 2 or d.status == DebtStatus.OVERDUE
         )
 
         return {
-            "total_debt": total,
+            "total_debt": float(total),
             "debt_count": len(debts),
             "urgent_debts": urgent,
         }
@@ -317,10 +318,10 @@ class FinancialEngine:
             primary = {
                 "id": g.id,
                 "name": g.name,
-                "target_amount": g.target_amount,
-                "current_amount": g.current_amount,
-                "progress_percentage": g.progress_percentage,
-                "remaining_amount": g.remaining_amount,
+                "target_amount": float(g.target_amount),
+                "current_amount": float(g.current_amount),
+                "progress_percentage": float(g.progress_percentage),
+                "remaining_amount": float(g.remaining_amount),
             }
 
         return {
@@ -328,7 +329,7 @@ class FinancialEngine:
             "primary_goal": primary,
         }
 
-    # ─── Dashboard ────────────────────────────────────────────
+    # ─── Dashboard ────────────────────────────────────
 
     async def get_dashboard(self) -> dict:
         """Assemble complete dashboard data."""
@@ -353,7 +354,7 @@ class FinancialEngine:
         recent_list = [
             {
                 "id": t.id,
-                "amount": t.amount,
+                "amount": float(t.amount),
                 "type": t.transaction_type,
                 "category": t.category,
                 "description": t.description,
@@ -370,11 +371,11 @@ class FinancialEngine:
             "this_week": week,
             "this_month": month,
             "daily_target": target_progress.get("target", 0),
-            "weekly_target": config.weekly_target if config else 0,
-            "monthly_target": config.monthly_target if config else 0,
+            "weekly_target": float(config.weekly_target) if config else 0.0,
+            "monthly_target": float(config.monthly_target) if config else 0.0,
             "daily_progress_percentage": target_progress.get("percentage", 0),
             "daily_remaining": target_progress.get("remaining", 0),
-            "hourly_rate": config.hourly_rate if config else 0,
+            "hourly_rate": float(config.hourly_rate) if config else 0.0,
             "hours_needed_today": target_progress.get("hours_needed", 0),
             "total_debt": debt_summary["total_debt"],
             "urgent_debts": debt_summary["urgent_debts"],

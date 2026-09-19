@@ -28,8 +28,12 @@ def calculate_debt_priority(
     if status == "paid":
         return 0
 
+    interest_rate = float(interest_rate or 0.0)
+    original_amount = float(original_amount or 0.0)
+    remaining_amount = float(remaining_amount or 0.0)
+
     current_time = now or datetime.now(timezone.utc)
-    score = (6 - max(1, min(5, priority))) * 12
+    score = float((6 - max(1, min(5, priority))) * 12)
 
     if status == "overdue":
         score += 30
@@ -65,8 +69,11 @@ def calculate_goal_priority(
     if status != "active":
         return 0
 
+    target_amount = float(target_amount or 0.0)
+    current_amount = float(current_amount or 0.0)
+
     current_time = now or datetime.now(timezone.utc)
-    score = (6 - max(1, min(5, priority))) * 12
+    score = float((6 - max(1, min(5, priority))) * 12)
     progress = current_amount / target_amount if target_amount > 0 else 1.0
     score += min(20.0, max(0.0, 1.0 - progress) * 20)
 

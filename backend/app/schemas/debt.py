@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
 
+from app.schemas.common import ContractBaseModel
+
 
 class DebtCreate(BaseModel):
     person_or_entity: str = Field(..., max_length=255)
@@ -40,7 +42,7 @@ class DebtPaymentCreate(BaseModel):
     notes: Optional[str] = None
 
 
-class DebtPaymentResponse(BaseModel):
+class DebtPaymentResponse(ContractBaseModel):
     id: str
     debt_id: str
     amount: float
@@ -52,7 +54,7 @@ class DebtPaymentResponse(BaseModel):
         from_attributes = True
 
 
-class DebtResponse(BaseModel):
+class DebtResponse(ContractBaseModel):
     id: str
     user_id: str
     person_or_entity: str
