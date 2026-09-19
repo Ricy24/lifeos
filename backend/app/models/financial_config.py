@@ -6,14 +6,14 @@ User's financial settings: hourly rate, daily targets, etc.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, JSON
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.database import Base
+from app.core.database import Base, AuditMixin
 
 
-class FinancialConfig(Base):
+class FinancialConfig(AuditMixin, Base):
     __tablename__ = "financial_configs"
 
     id: Mapped[str] = mapped_column(
@@ -30,14 +30,14 @@ class FinancialConfig(Base):
     )
 
     # Income settings
-    hourly_rate: Mapped[float] = mapped_column(Float, default=20000.0)  # COP per hour
-    daily_target: Mapped[float] = mapped_column(Float, default=100000.0)
-    weekly_target: Mapped[float] = mapped_column(Float, default=500000.0)
-    monthly_target: Mapped[float] = mapped_column(Float, default=2000000.0)
+    hourly_rate: Mapped[float] = mapped_column(Numeric(14, 2), default=20000.0)  # COP per hour
+    daily_target: Mapped[float] = mapped_column(Numeric(14, 2), default=100000.0)
+    weekly_target: Mapped[float] = mapped_column(Numeric(14, 2), default=500000.0)
+    monthly_target: Mapped[float] = mapped_column(Numeric(14, 2), default=2000000.0)
 
     # Work settings
     work_days_per_week: Mapped[int] = mapped_column(Integer, default=6)
-    work_hours_per_day: Mapped[float] = mapped_column(Float, default=8.0)
+    work_hours_per_day: Mapped[float] = mapped_column(Numeric(14, 2), default=8.0)
 
     # Currency & locale
     currency: Mapped[str] = mapped_column(String(10), default="COP")

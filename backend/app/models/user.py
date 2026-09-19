@@ -9,10 +9,10 @@ from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.core.database import Base, AuditMixin
 
 
-class User(Base):
+class User(AuditMixin, Base):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(

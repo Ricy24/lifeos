@@ -8,12 +8,12 @@ from datetime import datetime, timezone
 from enum import Enum as PyEnum
 
 from sqlalchemy import (
-    Boolean, DateTime, Enum, Float, ForeignKey, String, Text
+    Boolean, DateTime, Enum, ForeignKey, Numeric, String, Text
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.core.database import Base, AuditMixin
 
 
 class AccountType(str, PyEnum):
@@ -27,7 +27,7 @@ class AccountType(str, PyEnum):
     OTHER = "other"
 
 
-class Account(Base):
+class Account(AuditMixin, Base):
     __tablename__ = "accounts"
 
     id: Mapped[str] = mapped_column(
@@ -47,7 +47,7 @@ class Account(Base):
         nullable=False,
         default=AccountType.CASH,
     )
-    balance: Mapped[float] = mapped_column(Float, default=0.0)
+    balance: Mapped[float] = mapped_column(Numeric(14, 2), default=0.0)
     currency: Mapped[str] = mapped_column(String(10), default="COP")
     description: Mapped[str] = mapped_column(Text, nullable=True)
     color: Mapped[str] = mapped_column(String(7), nullable=True)  # Hex color

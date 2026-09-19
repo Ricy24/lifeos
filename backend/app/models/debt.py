@@ -8,12 +8,12 @@ from datetime import datetime, timezone
 from enum import Enum as PyEnum
 
 from sqlalchemy import (
-    DateTime, Enum, Float, ForeignKey, Integer, String, Text, JSON
+    DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, JSON
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.core.database import Base, AuditMixin
 from app.services.priority_engine import calculate_debt_priority
 
 
@@ -29,7 +29,7 @@ class DebtType(str, PyEnum):
     OWED_TO_ME = "owed_to_me"  # Someone owes me
 
 
-class Debt(Base):
+class Debt(AuditMixin, Base):
     __tablename__ = "debts"
 
     id: Mapped[str] = mapped_column(
@@ -50,9 +50,9 @@ class Debt(Base):
         Enum(DebtType, name="debt_type_enum"),
         default=DebtType.I_OWE,
     )
-    original_amount: Mapped[float] = mapped_column(Float, nullable=False)
-    remaining_amount: Mapped[float] = mapped_column(Float, nullable=False)
-    interest_rate: Mapped[float] = mapped_column(Float, nullable=True, default=0.0)
+    original_amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    remaining_amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    interest_rate: Mapped[float] = mapped_column(Numeric(14, 2), nullable=True, default=0.0)
 
     # Dates
     debt_date: Mapped[datetime] = mapped_column(
@@ -103,7 +103,7 @@ class Debt(Base):
         )
 
 
-class DebtPayment(Base):
+class DebtPayment(AuditMixin, Base):
     __tablename__ = "debt_payments"
 
     id: Mapped[str] = mapped_column(
@@ -117,7 +117,7 @@ class DebtPayment(Base):
         nullable=False,
         index=True,
     )
-    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
     payment_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

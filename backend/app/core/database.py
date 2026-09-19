@@ -40,6 +40,24 @@ class Base(DeclarativeBase):
     """Base class for all SQLAlchemy models."""
     pass
 
+from datetime import datetime, timezone
+from sqlalchemy import DateTime, Integer
+from sqlalchemy.orm import Mapped, declared_attr, mapped_column
+
+class AuditMixin:
+    """Mixin for audit and versioning columns."""
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False, server_default="1")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+    
+    @declared_attr
+    def __mapper_args__(cls):
+        return {"version_id_col": cls.version}
+
 
 async def get_db() -> AsyncSession:
     """Dependency that provides a database session."""

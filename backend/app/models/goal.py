@@ -8,12 +8,12 @@ from datetime import datetime, timezone
 from enum import Enum as PyEnum
 
 from sqlalchemy import (
-    DateTime, Enum, Float, ForeignKey, Integer, String, Text, JSON
+    DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, JSON
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.core.database import Base, AuditMixin
 from app.services.priority_engine import calculate_goal_priority
 
 
@@ -35,7 +35,7 @@ class GoalCategory(str, PyEnum):
     OTHER = "other"
 
 
-class Goal(Base):
+class Goal(AuditMixin, Base):
     __tablename__ = "goals"
 
     id: Mapped[str] = mapped_column(
@@ -52,8 +52,8 @@ class Goal(Base):
 
     # Core
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    target_amount: Mapped[float] = mapped_column(Float, nullable=False)
-    current_amount: Mapped[float] = mapped_column(Float, default=0.0)
+    target_amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    current_amount: Mapped[float] = mapped_column(Numeric(14, 2), default=0.0)
     category: Mapped[str] = mapped_column(
         Enum(GoalCategory, name="goal_category_enum"),
         default=GoalCategory.PURCHASE,
@@ -109,7 +109,7 @@ class Goal(Base):
         )
 
 
-class WishlistItem(Base):
+class WishlistItem(AuditMixin, Base):
     __tablename__ = "wishlist_items"
 
     id: Mapped[str] = mapped_column(
@@ -126,7 +126,7 @@ class WishlistItem(Base):
 
     # Product info
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    price: Mapped[float] = mapped_column(Float, nullable=False)
+    price: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
     url: Mapped[str] = mapped_column(String(1000), nullable=True)
     store: Mapped[str] = mapped_column(String(255), nullable=True)
     image_url: Mapped[str] = mapped_column(String(1000), nullable=True)
@@ -134,8 +134,8 @@ class WishlistItem(Base):
 
     # Tracking
     priority: Mapped[int] = mapped_column(Integer, default=3)
-    saved_amount: Mapped[float] = mapped_column(Float, default=0.0)
-    previous_price: Mapped[float] = mapped_column(Float, nullable=True)
+    saved_amount: Mapped[float] = mapped_column(Numeric(14, 2), default=0.0)
+    previous_price: Mapped[float] = mapped_column(Numeric(14, 2), nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="wanted")  # wanted, saving, purchased, cancelled
     notes: Mapped[str] = mapped_column(Text, nullable=True)
 

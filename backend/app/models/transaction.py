@@ -8,12 +8,12 @@ from datetime import datetime, timezone
 from enum import Enum as PyEnum
 
 from sqlalchemy import (
-    Boolean, DateTime, Enum, Float, ForeignKey, String, Text, JSON
+    Boolean, DateTime, Enum, ForeignKey, Numeric, String, Text, JSON
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.core.database import Base, AuditMixin
 
 
 class TransactionType(str, PyEnum):
@@ -59,7 +59,7 @@ class SyncStatus(str, PyEnum):
     FAILED = "failed"
 
 
-class Transaction(Base):
+class Transaction(AuditMixin, Base):
     __tablename__ = "transactions"
 
     id: Mapped[str] = mapped_column(
@@ -81,7 +81,7 @@ class Transaction(Base):
     )
 
     # Core fields
-    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
     transaction_type: Mapped[str] = mapped_column(
         Enum(TransactionType, name="transaction_type_enum"),
         nullable=False,
