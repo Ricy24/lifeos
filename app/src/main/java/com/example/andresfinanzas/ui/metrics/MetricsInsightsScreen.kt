@@ -428,12 +428,12 @@ fun MetricsInsightsScreen(
                     .fillMaxWidth()
                     .border(
                         width = 1.dp,
-                        color = Color(0xFF0088CC).copy(alpha = 0.5f),
+                        color = TelegramBlue.copy(alpha = 0.5f),
                         shape = RoundedCornerShape(22.dp)
                     ),
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF0088CC).copy(alpha = 0.1f)
+                    containerColor = TelegramBlue.copy(alpha = 0.1f)
                 )
             ) {
                 Column(
@@ -446,7 +446,7 @@ fun MetricsInsightsScreen(
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = Color(0xFF0088CC),
+                            color = TelegramBlue,
                             modifier = Modifier.size(36.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -495,7 +495,7 @@ fun MetricsInsightsScreen(
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0088CC))
+                        colors = ButtonDefaults.buttonColors(containerColor = TelegramBlue)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Send,
@@ -505,7 +505,7 @@ fun MetricsInsightsScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Abrir Bot en Telegram (@Andresfinanzas_bot)",
+                            text = "Abrir Bot en Telegram (@LifeOS_bot)",
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )

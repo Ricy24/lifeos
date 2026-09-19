@@ -2,10 +2,22 @@ package com.example.andresfinanzas.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+// Brand Semantic Colors
+val PrimaryBrand = Color(0xFF0450FE)
+val SurfaceClear = Color(0xFFD2F2FD)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+// Finance Semantic Colors (Fixed, do not rely on dynamic color)
+val EmeraldGreen = Color(0xFF10B981) // Success / Income
+val RoseRed = Color(0xFFF43F5E) // Alert / Expense
+val AmberWarning = Color(0xFFF59E0B) // Warning
+
+// Other Palette Tokens
+val ElectricIndigo = Color(0xFF6366F1)
+val CyanAccent = Color(0xFF06B6D4)
+
+// Formerly hardcoded colors
+val TelegramBlue = Color(0xFF0088CC)
+val IndigoVariant1 = Color(0xFF4338CA)
+val IndigoVariant2 = Color(0xFF312E81)
+val IndigoVariant3 = Color(0xFF4F46E5)
+val IndigoVariant4 = Color(0xFF3730A3)

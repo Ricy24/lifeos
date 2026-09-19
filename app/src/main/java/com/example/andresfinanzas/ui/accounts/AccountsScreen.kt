@@ -95,7 +95,7 @@ fun AccountsScreen(
                             .fillMaxWidth()
                             .background(
                                 Brush.horizontalGradient(
-                                    listOf(ElectricIndigo, Color(0xFF4F46E5), Color(0xFF3730A3))
+                                    listOf(ElectricIndigo, IndigoVariant3, IndigoVariant4)
                                 )
                             )
                             .padding(24.dp)

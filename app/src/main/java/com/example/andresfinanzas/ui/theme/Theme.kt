@@ -1,27 +1,30 @@
 package com.example.andresfinanzas.ui.theme
 
+import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
-
-val EmeraldGreen = Color(0xFF10B981)
-val RoseRed = Color(0xFFF43F5E)
-val ElectricIndigo = Color(0xFF6366F1)
-val CyanAccent = Color(0xFF06B6D4)
-val AmberWarning = Color(0xFFF59E0B)
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = ElectricIndigo,
+    primary = PrimaryBrand,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFF282B4E),
+    primaryContainer = Color(0xFF002F99),
     onPrimaryContainer = Color(0xFFE0E3FF),
-    secondary = EmeraldGreen,
-    onSecondary = Color.Black,
-    secondaryContainer = Color(0xFF064E3B),
-    onSecondaryContainer = Color(0xFFA7F3D0),
+    secondary = ElectricIndigo,
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFF3730A3),
+    onSecondaryContainer = Color(0xFFE0E7FF),
     tertiary = CyanAccent,
     background = Color(0xFF0A0D14),
     surface = Color(0xFF141824),
@@ -35,14 +38,14 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = ElectricIndigo,
+    primary = PrimaryBrand,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFE0E7FF),
-    onPrimaryContainer = Color(0xFF1E1B4B),
-    secondary = EmeraldGreen,
+    primaryContainer = SurfaceClear,
+    onPrimaryContainer = Color(0xFF001B66),
+    secondary = ElectricIndigo,
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFD1FAE5),
-    onSecondaryContainer = Color(0xFF064E3B),
+    secondaryContainer = Color(0xFFE0E7FF),
+    onSecondaryContainer = Color(0xFF1E1B4B),
     tertiary = CyanAccent,
     background = Color(0xFFF8FAFC),
     surface = Color(0xFFFFFFFF),
@@ -58,9 +61,26 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun LifeOSTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
+    }
+
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = colorScheme.background.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+        }
+    }
 
     MaterialTheme(
         colorScheme = colorScheme,

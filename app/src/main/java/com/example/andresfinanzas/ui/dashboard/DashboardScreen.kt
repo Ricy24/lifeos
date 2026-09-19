@@ -142,8 +142,8 @@ fun DashboardScreen(
                             Brush.linearGradient(
                                 listOf(
                                     ElectricIndigo,
-                                    Color(0xFF4338CA),
-                                    Color(0xFF312E81)
+                                    IndigoVariant1,
+                                    IndigoVariant2
                                 )
                             )
                         )
