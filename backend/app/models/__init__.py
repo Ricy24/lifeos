@@ -14,6 +14,7 @@ from app.models.transaction import (
     Transaction,
     TransactionType,
 )
+from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.models.work_session import WorkSession
 
@@ -32,6 +33,7 @@ __all__ = [
     "WishlistItem",
     "ExpenseCategory",
     "IncomeCategory",
+    "RefreshToken",
     "SyncStatus",
     "Transaction",
     "TransactionType",

@@ -24,7 +24,7 @@ from app.schemas.auth import (
     UserResponse,
 )
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+router = APIRouter(prefix="/auth", tags=["Authentication (v1 - Deprecated)"], deprecated=True)
 
 
 @router.post("/login", response_model=TokenResponse)

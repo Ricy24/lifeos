@@ -57,3 +57,57 @@ def decode_token(token: str) -> Optional[dict]:
         return payload
     except JWTError:
         return None
+
+
+# ─── V2 Authentication Helpers ────────────────────────────
+import hashlib
+import secrets
+
+ACCESS_TOKEN_EXPIRE_MINUTES_V2: int = 15
+REFRESH_TOKEN_EXPIRE_DAYS_V2: int = 30
+
+
+def hash_token(token: str) -> str:
+    """Hash a token string using SHA-256 for secure database storage."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def create_access_token_v2(
+    user_id: str,
+    extra_claims: Optional[dict] = None,
+    expires_minutes: int = ACCESS_TOKEN_EXPIRE_MINUTES_V2,
+) -> str:
+    """Create a short-lived V2 JWT access token (15 minutes)."""
+    to_encode = (extra_claims or {}).copy()
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=expires_minutes)
+    to_encode.update({
+        "sub": user_id,
+        "iat": now,
+        "exp": expire,
+        "type": "access_v2",
+    })
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def create_refresh_token_v2(
+    user_id: str,
+    expires_days: int = REFRESH_TOKEN_EXPIRE_DAYS_V2,
+) -> tuple[str, str, datetime]:
+    """
+    Create a V2 refresh token with cryptographic randomness.
+    Returns (raw_token, token_hash, expires_at).
+    """
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=expires_days)
+    random_entropy = secrets.token_urlsafe(32)
+    to_encode = {
+        "sub": user_id,
+        "jti": random_entropy,
+        "iat": now,
+        "exp": expires_at,
+        "type": "refresh_v2",
+    }
+    raw_token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    token_hash = hash_token(raw_token)
+    return raw_token, token_hash, expires_at

@@ -30,7 +30,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if payload.get("type") != "access":
+    if payload.get("type") not in ("access", "access_v2"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token type",

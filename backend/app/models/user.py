@@ -39,3 +39,4 @@ class User(AuditMixin, Base):
     transactions = relationship("Transaction", back_populates="user", lazy="selectin")
     debts = relationship("Debt", back_populates="user", lazy="selectin")
     goals = relationship("Goal", back_populates="user", lazy="selectin")
+    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan", lazy="selectin")

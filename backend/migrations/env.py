@@ -27,6 +27,7 @@ from app.models.goal import Goal, WishlistItem
 from app.models.financial_config import FinancialConfig
 from app.models.financial_snapshot import FinancialSnapshot
 from app.models.work_session import WorkSession
+from app.models.refresh_token import RefreshToken
 
 target_metadata = Base.metadata
 

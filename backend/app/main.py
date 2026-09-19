@@ -10,6 +10,7 @@ import uvicorn
 from app.core.config import settings
 from app.core.database import engine
 from app.api.v1 import auth, accounts, transactions, tasks, debts, goals, insights, telegram, finance, work, forecast
+from app.api.v2 import auth as auth_v2
 from app.services.telegram_bot_service import SmartTelegramBot, run_telegram_polling
 import asyncio
 
@@ -65,6 +66,9 @@ app.include_router(telegram.router, prefix="/api/v1")
 app.include_router(finance.router, prefix="/api/v1")
 app.include_router(work.router, prefix="/api/v1")
 app.include_router(forecast.router, prefix="/api/v1")
+
+# Routers v2
+app.include_router(auth_v2.router, prefix="/api/v2")
 
 @app.get("/health", tags=["System"])
 async def health_check():
