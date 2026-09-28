@@ -1,10 +1,29 @@
 package com.example.andresfinanzas.ui.motorcycle
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -12,20 +31,63 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.StopCircle
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.andresfinanzas.R
 import com.example.andresfinanzas.data.repository.ComponentHealth
 import com.example.andresfinanzas.data.repository.DocumentStatus
 import com.example.andresfinanzas.data.repository.MaintenanceStatus
@@ -51,50 +113,131 @@ fun MotorcycleScreen(
     var showCostPerKmDialog by remember { mutableStateOf(false) }
 
     val moto = uiState.motorcycle
+    val isDark = isSystemInDarkTheme()
 
     val formatCop = NumberFormat.getCurrencyInstance(Locale("es", "CO")).apply {
         maximumFractionDigits = 0
+    }
+
+    // Floating 3D animation
+    val infiniteTransition = rememberInfiniteTransition(label = "moto3DFloat")
+    val floatOffsetY by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -12f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "floatY"
+    )
+
+    // Soft atmospheric top background gradient
+    val headerGradient = if (isDark) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF2E1065).copy(alpha = 0.5f), // Soft indigo-purple atmospheric glow
+                Color(0xFF1E1B4B).copy(alpha = 0.25f),
+                MaterialTheme.colorScheme.background
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFFEDE9FE), // Pastel soft lavender
+                Color(0xFFF5F3FF),
+                MaterialTheme.colorScheme.background
+            )
+        )
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("🏍️ ", fontSize = 22.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Column {
                             Text(
-                                text = moto?.name ?: "Mi Moto",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
+                                text = "Mi Moto",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onBackground
                             )
                             Text(
-                                text = "Modelo ${moto?.model ?: "2024"} • Sincronizado en la Nube",
+                                text = "${moto?.name ?: "Yamaha"} • Modelo ${moto?.model ?: "2024"}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+
+                        // Right Status Badges (Fire / Health & Actions)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = EmeraldGreen.copy(alpha = 0.15f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.3f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text("🔥", fontSize = 13.sp)
+                                    Text(
+                                        text = "100%",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = EmeraldGreen
+                                    )
+                                }
+                            }
+
+                            IconButton(
+                                onClick = { viewModel.syncWithBackend() },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            ) {
+                                if (uiState.isSyncing) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Icon(Icons.Default.Sync, contentDescription = "Sincronizar", modifier = Modifier.size(18.dp))
+                                }
+                            }
+
+                            IconButton(
+                                onClick = { showEditInfoDialog = true },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            ) {
+                                Icon(Icons.Default.Settings, contentDescription = "Configuración", modifier = Modifier.size(18.dp))
+                            }
+                        }
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.syncWithBackend() }) {
-                        if (uiState.isSyncing) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        } else {
-                            Icon(Icons.Default.Sync, contentDescription = "Sincronizar con servidor")
-                        }
-                    }
-                    IconButton(onClick = { showEditInfoDialog = true }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Configuración")
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás", modifier = Modifier.size(20.dp))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = Color.Transparent
                 )
             )
         }
@@ -109,108 +252,142 @@ fun MotorcycleScreen(
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         } else {
+            // Find key components for quick pods
+            val oilHealth = uiState.componentsHealth.firstOrNull { it.name.contains("Aceite", ignoreCase = true) }
+            val brakeHealth = uiState.componentsHealth.firstOrNull { it.name.contains("Freno", ignoreCase = true) }
+            val tireHealth = uiState.componentsHealth.firstOrNull { it.name.contains("Llanta", ignoreCase = true) }
+            val chainHealth = uiState.componentsHealth.firstOrNull { it.name.contains("Cadena", ignoreCase = true) }
+
+            // Dynamic companion dialogue based on moto status
+            val companionSpeech = remember(moto.currentMileage, oilHealth?.remainingKm, chainHealth?.remainingKm, uiState.soatStatus?.daysRemaining) {
+                when {
+                    (oilHealth?.remainingKm ?: 1000) < 300 -> {
+                        "¡Hey Andrés! El cambio de aceite está muy cerca (${oilHealth?.remainingKm} km restantes). ¡Cuidemos el motor! 🛢️"
+                    }
+                    (chainHealth?.remainingKm ?: 500) < 100 -> {
+                        "¡Hey Andrés! Toca lubricar y tensionar la cadena pronto ⛓️"
+                    }
+                    (uiState.soatStatus?.daysRemaining ?: 365) < 30 -> {
+                        "¡Atención Andrés! Tu SOAT vence en ${uiState.soatStatus?.daysRemaining} días. Tenlo presente 🛡️"
+                    }
+                    else -> {
+                        "¡Hey Andrés! Tu ${moto.name} está al 100% de salud. ¿Listo para salir a rodar hoy? 🏍️✨"
+                    }
+                }
+            }
+
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
+                    .background(brush = headerGradient)
                     .padding(innerPadding)
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // 1. Digital Odometer Hero Card
+                // 1. HERO 3D MOTORCYCLE SECTION (with speech bubble & glowing halo)
                 item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp, bottom = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // Companion Speech Bubble with tail
+                        SpeechBubble(
+                            text = companionSpeech,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // 3D Motorcycle floating over glowing arc
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(
-                                            Color(0xFF1E293B),
-                                            Color(0xFF0F172A)
-                                        )
-                                    )
-                                )
-                                .padding(24.dp)
+                                .height(220.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "ODÓMETRO TOTAL (KM)",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF94A3B8),
-                                        letterSpacing = 1.5.sp
-                                    )
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = EmeraldGreen.copy(alpha = 0.2f)
-                                    ) {
-                                        Text(
-                                            text = "En la nube ☁️",
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                            color = EmeraldGreen,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold
+                            // Glowing Halo Arc behind bike
+                            Canvas(modifier = Modifier.size(280.dp, 160.dp)) {
+                                drawArc(
+                                    brush = Brush.sweepGradient(
+                                        colors = listOf(
+                                            ElectricIndigo.copy(alpha = 0.15f),
+                                            Color(0xFF06B6D4).copy(alpha = 0.85f), // Cyan glow
+                                            ElectricIndigo.copy(alpha = 0.95f),
+                                            Color(0xFF06B6D4).copy(alpha = 0.85f),
+                                            ElectricIndigo.copy(alpha = 0.15f)
                                         )
+                                    ),
+                                    startAngle = 180f,
+                                    sweepAngle = 180f,
+                                    useCenter = false,
+                                    style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
+                                )
+                            }
+
+                            // 3D Motorcycle Avatar
+                            Image(
+                                painter = painterResource(id = R.drawable.moto_3d_avatar),
+                                contentDescription = "Moto 3D Companion",
+                                modifier = Modifier
+                                    .size(230.dp)
+                                    .graphicsLayer {
+                                        translationY = floatOffsetY
+                                    }
+                            )
+                        }
+
+                        // Digital Odometer Quick Capsule Badge
+                        Surface(
+                            shape = RoundedCornerShape(24.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                            shadowElevation = 8.dp,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                            modifier = Modifier.clickable { showMileageDialog = true }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(
+                                    text = "⚡ ${NumberFormat.getNumberInstance(Locale.US).format(moto.currentMileage)} km",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                    modifier = Modifier.clickable { showMileageDialog = true }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
+                                        Text("Editar", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                                     }
                                 }
 
-                                Row(
-                                    verticalAlignment = Alignment.Bottom,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = NumberFormat.getNumberInstance(Locale.US).format(moto.currentMileage),
-                                        fontSize = 42.sp,
-                                        fontWeight = FontWeight.Black,
-                                        fontFamily = FontFamily.Monospace,
-                                        color = Color.White
-                                    )
-                                    Text(
-                                        text = "km",
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF38BDF8),
-                                        modifier = Modifier.padding(bottom = 6.dp)
-                                    )
-                                }
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Button(
-                                        onClick = { showMileageDialog = true },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = ElectricIndigo)
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                        modifier = Modifier.clickable { viewModel.updateMileage(moto.currentMileage + 50) }
                                     ) {
-                                        Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Editar km", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("+50", fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
                                     }
-
-                                    OutlinedButton(
-                                        onClick = { viewModel.updateMileage(moto.currentMileage + 50) },
-                                        shape = RoundedCornerShape(12.dp)
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                        modifier = Modifier.clickable { viewModel.updateMileage(moto.currentMileage + 100) }
                                     ) {
-                                        Text("+50", fontWeight = FontWeight.Bold)
-                                    }
-
-                                    OutlinedButton(
-                                        onClick = { viewModel.updateMileage(moto.currentMileage + 100) },
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        Text("+100", fontWeight = FontWeight.Bold)
+                                        Text("+100", fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
                                     }
                                 }
                             }
@@ -218,7 +395,181 @@ fun MotorcycleScreen(
                     }
                 }
 
-                // 2. Document Status Cards (SOAT & Tecnomecánica)
+                // 2. CIRCULAR QUICK ACTION PODS (Matching the 4 round pods from the reference UI)
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Pod 1: Aceite
+                        QuickMetricPod(
+                            iconEmoji = "🛢️",
+                            label = "Aceite",
+                            valueText = "${oilHealth?.remainingKm ?: 1500} km",
+                            isWarning = (oilHealth?.remainingKm ?: 1000) < 500,
+                            onClick = {
+                                if (oilHealth != null) componentToEdit = oilHealth
+                                else showMileageDialog = true
+                            }
+                        )
+
+                        // Pod 2: Frenos
+                        val brakeLife = brakeHealth?.let { ((1f - it.progress) * 100).toInt().coerceIn(0, 100) } ?: 85
+                        QuickMetricPod(
+                            iconEmoji = "🛑",
+                            label = "Frenos",
+                            valueText = "$brakeLife%",
+                            isWarning = brakeLife < 30,
+                            onClick = {
+                                if (brakeHealth != null) componentToEdit = brakeHealth
+                            }
+                        )
+
+                        // Pod 3: Llantas
+                        val tireLife = tireHealth?.let { ((1f - it.progress) * 100).toInt().coerceIn(0, 100) } ?: 90
+                        QuickMetricPod(
+                            iconEmoji = "⚙️",
+                            label = "Llantas",
+                            valueText = "$tireLife%",
+                            isWarning = tireLife < 30,
+                            onClick = {
+                                if (tireHealth != null) componentToEdit = tireHealth
+                            }
+                        )
+
+                        // Pod 4: SOAT / Documentos
+                        QuickMetricPod(
+                            iconEmoji = "🛡️",
+                            label = "SOAT",
+                            valueText = "${uiState.soatStatus?.daysRemaining ?: 365} d",
+                            isWarning = (uiState.soatStatus?.daysRemaining ?: 365) < 30,
+                            onClick = {
+                                documentToEdit = Pair("SOAT", uiState.soatStatus?.daysRemaining ?: 365)
+                            }
+                        )
+                    }
+                }
+
+                // 3. COACH CARD / INSIGHT CARD (Matching COACH AVO card in reference)
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(ElectricIndigo)
+                                    )
+                                    Text(
+                                        text = "COACH LIFEOS MOTO",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = ElectricIndigo,
+                                        letterSpacing = 1.sp
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                ) {
+                                    Text(
+                                        text = "Ahorro Activo",
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = "Tu gasto estimado por km rodado es de ${formatCop.format(moto.costPerKm)}/km. Recomendamos reservar ${formatCop.format(uiState.monthlyReserveEstimated)} al mes para cubrir cambios de aceite, llantas y SOAT sin sorpresas.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                lineHeight = 20.sp
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Button(
+                                    onClick = { showCostPerKmDialog = true },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = ElectricIndigo)
+                                ) {
+                                    Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Fondo COP/km", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                                }
+
+                                OutlinedButton(
+                                    onClick = { showMileageDialog = true },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Odómetro", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 4. "TODAY'S PLAN" - ESTADO DETALLADO DE COMPONENTES
+                item {
+                    Text(
+                        text = "Plan de Mantenimiento",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+
+                items(uiState.componentsHealth) { component ->
+                    ComponentHealthCard(
+                        health = component,
+                        onPerformService = {
+                            when (component.name) {
+                                "Aceite de Motor" -> viewModel.recordOilChange()
+                                "Cadena (Lubricación)" -> viewModel.recordChainMaintenance()
+                                "Pastillas de Freno" -> viewModel.recordBrakePadsChange()
+                                "Llanta Trasera" -> viewModel.editTireSettings(true, moto.currentMileage, component.intervalKm)
+                                "Llanta Delantera" -> viewModel.editTireSettings(false, moto.currentMileage, component.intervalKm)
+                            }
+                        },
+                        onEditValues = {
+                            componentToEdit = component
+                        }
+                    )
+                }
+
+                // 5. DOCUMENTACIÓN LEGAL
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -263,90 +614,8 @@ fun MotorcycleScreen(
                     }
                 }
 
-                // 3. Maintenance Provision (Fondo de Ahorro Preventivo)
                 item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showCostPerKmDialog = true },
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = ElectricIndigo.copy(alpha = 0.12f)
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = ElectricIndigo.copy(alpha = 0.2f),
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text("💰", fontSize = 22.sp)
-                                }
-                            }
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Fondo Preventivo de Moto (Toca para editar)",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Sugerido: ${formatCop.format(uiState.monthlyReserveEstimated)} / mes (${formatCop.format(moto.costPerKm)}/km) para que cualquier repuesto esté cubierto.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                        }
-                    }
-                }
-
-                // 4. Component Health Monitoring
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Componentes & Mantenimiento",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Text(
-                            text = "Toca para registrar o editar",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-
-                items(uiState.componentsHealth) { component ->
-                    ComponentHealthCard(
-                        health = component,
-                        onPerformService = {
-                            when (component.name) {
-                                "Aceite de Motor" -> viewModel.recordOilChange()
-                                "Cadena (Lubricación)" -> viewModel.recordChainMaintenance()
-                                "Pastillas de Freno" -> viewModel.recordBrakePadsChange()
-                                "Llanta Trasera" -> viewModel.editTireSettings(true, moto.currentMileage, component.intervalKm)
-                                "Llanta Delantera" -> viewModel.editTireSettings(false, moto.currentMileage, component.intervalKm)
-                            }
-                        },
-                        onEditValues = {
-                            componentToEdit = component
-                        }
-                    )
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(30.dp))
+                    Spacer(modifier = Modifier.height(40.dp))
                 }
             }
         }
@@ -406,7 +675,7 @@ fun MotorcycleScreen(
                     OutlinedTextField(
                         value = inputLastKm,
                         onValueChange = { inputLastKm = it.filter { ch -> ch.isDigit() } },
-                        label = { Text("Último cambio/servicio realizado a los (km)") },
+                        label = { Text("Último cambio/servicio a los (km)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -581,6 +850,118 @@ fun MotorcycleScreen(
     }
 }
 
+/**
+ * Thought/Speech bubble with tail pointing downward to the 3D companion.
+ */
+@Composable
+private fun SpeechBubble(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    val isDark = isSystemInDarkTheme()
+    val bubbleColor = if (isDark) Color(0xFF1E2235) else Color.White
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+    ) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = bubbleColor,
+            shadowElevation = 8.dp,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp
+            )
+        }
+
+        // Tail triangle pointing down
+        Canvas(modifier = Modifier.size(14.dp, 8.dp)) {
+            val path = Path().apply {
+                moveTo(0f, 0f)
+                lineTo(size.width, 0f)
+                lineTo(size.width / 2f, size.height)
+                close()
+            }
+            drawPath(path, color = bubbleColor)
+        }
+    }
+}
+
+/**
+ * Circular Quick Action Pod (Matching the 4 round pods from the reference UI).
+ */
+@Composable
+private fun QuickMetricPod(
+    iconEmoji: String,
+    label: String,
+    valueText: String,
+    isWarning: Boolean,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.clickable { onClick() }
+    ) {
+        Box(contentAlignment = Alignment.BottomEnd) {
+            // Main Circular Pod
+            Box(
+                modifier = Modifier
+                    .size(58.dp)
+                    .shadow(elevation = 6.dp, shape = CircleShape)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(
+                        width = 1.dp,
+                        color = if (isWarning) RoseRed.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = iconEmoji, fontSize = 24.sp)
+            }
+
+            // Small '+' action badge
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(if (isWarning) RoseRed else ElectricIndigo),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+        }
+
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Text(
+            text = valueText,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (isWarning) RoseRed else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
 @Composable
 fun DocumentCard(
     status: DocumentStatus?,
@@ -663,8 +1044,9 @@ fun ComponentHealthCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { expanded = !expanded },
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
