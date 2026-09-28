@@ -87,7 +87,7 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private fun syncData() {
+    fun syncData() {
         viewModelScope.launch {
             try {
                 accountRepository.syncAccounts()

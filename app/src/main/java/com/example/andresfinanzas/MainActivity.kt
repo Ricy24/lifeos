@@ -20,6 +20,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.andresfinanzas.data.local.entities.AccountEntity
 import com.example.andresfinanzas.data.repository.ThemeMode
 import com.example.andresfinanzas.ui.accounts.AccountsScreen
+import com.example.andresfinanzas.ui.auth.AuthViewModel
+import com.example.andresfinanzas.ui.auth.LoginScreen
 import com.example.andresfinanzas.ui.components.AddAccountDialog
 import com.example.andresfinanzas.ui.components.AddTransactionBottomSheet
 import com.example.andresfinanzas.ui.dashboard.DashboardScreen
@@ -76,8 +78,27 @@ fun AppNavigation(
     sharedText: String? = null,
     onSharedTextConsumed: () -> Unit = {},
     onToggleTheme: () -> Unit = {},
-    dashboardViewModel: DashboardViewModel = hiltViewModel()
+    dashboardViewModel: DashboardViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel = hiltViewModel()
 ) {
+    val authUiState by authViewModel.uiState.collectAsState()
+
+    if (!authUiState.isAuthenticated) {
+        LoginScreen(
+            onLoginSuccess = {
+                dashboardViewModel.syncData()
+            },
+            viewModel = authViewModel
+        )
+        return
+    }
+
+    LaunchedEffect(authUiState.isAuthenticated) {
+        if (authUiState.isAuthenticated) {
+            dashboardViewModel.syncData()
+        }
+    }
+
     var currentScreen by remember { mutableStateOf("dashboard") }
     var selectedGoalsTab by remember { mutableStateOf(0) } // 0: Metas, 1: Deudas, 2: Wishlist
     var showAddTransactionSheet by remember { mutableStateOf(false) }

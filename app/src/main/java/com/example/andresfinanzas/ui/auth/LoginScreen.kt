@@ -21,8 +21,8 @@ fun LoginScreen(
     viewModel: AuthViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var email by remember { mutableStateOf("") }
-    var pin by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("admin@lifeos.local") }
+    var pin by remember { mutableStateOf("AdminPassword2026!") }
 
     LaunchedEffect(uiState.isAuthenticated) {
         if (uiState.isAuthenticated) {
