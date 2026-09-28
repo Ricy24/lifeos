@@ -12,7 +12,11 @@ data class OutingStopRemote(
     val rating: Double? = 4.8,
     val review_count: Int? = 120,
     val highlight_review: String? = null,
-    val distance_km: Double? = null
+    val distance_km: Double? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val address: String? = null,
+    val price_level: Int? = null
 )
 
 data class OutingPlanRequestRemote(
@@ -23,7 +27,8 @@ data class OutingPlanRequestRemote(
     val use_current_location: Boolean = false,
     val latitude: Double? = null,
     val longitude: Double? = null,
-    val radius_km: Int? = 5
+    val radius_km: Int? = 5,
+    val google_maps_api_key: String? = null
 )
 
 data class OutingPlanResponseRemote(

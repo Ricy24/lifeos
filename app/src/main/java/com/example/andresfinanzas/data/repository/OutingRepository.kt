@@ -63,7 +63,8 @@ class OutingRepository @Inject constructor(
             use_current_location = useCurrentLocation,
             latitude = latitude,
             longitude = longitude,
-            radius_km = radiusKm
+            radius_km = radiusKm,
+            google_maps_api_key = com.example.andresfinanzas.BuildConfig.MAPS_API_KEY
         )
         outingApi.generatePlan(request)
     }

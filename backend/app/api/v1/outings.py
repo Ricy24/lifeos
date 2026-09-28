@@ -66,8 +66,11 @@ async def generate_outing_plan(
     visited_names = [p for p in places_res.scalars().all()]
     visited_text = ", ".join(visited_names) if visited_names else "Ninguno todavía"
 
-    # 3. Call Gemini AI or High-Quality Intelligent Fallback
-    plan = await _generate_with_ai(
+    # 3. Resolve Google Maps API Key (from request or server settings)
+    effective_maps_key = (request.google_maps_api_key or settings.GOOGLE_MAPS_API_KEY or "").strip()
+
+    # 4. Generate plan via Google Places API + Gemini AI or Fallback
+    plan = await _generate_with_ai_or_places(
         outing_type=request.outing_type,
         target_budget=target_budget,
         area=request.area_or_city,
@@ -78,10 +81,22 @@ async def generate_outing_plan(
         use_location=request.use_current_location,
         latitude=request.latitude,
         longitude=request.longitude,
-        radius_km=request.radius_km or 5
+        radius_km=request.radius_km or 5,
+        maps_api_key=effective_maps_key
     )
 
     return plan
+
+
+import math
+
+def _haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return round(R * c, 2)
 
 
 CATEGORY_FALLBACK_PHOTOS = {
@@ -109,9 +124,48 @@ def _get_category_photo(category: str, title: str) -> str:
     return "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80"
 
 
-async def _fetch_google_places_info(client: httpx.AsyncClient, query: str) -> dict:
+async def _search_google_places_nearby(
+    client: httpx.AsyncClient,
+    lat: float,
+    lon: float,
+    radius_km: int,
+    outing_type: str,
+    api_key: str
+) -> list:
+    """Queries Google Places Nearby Search for real venues in the given radius."""
+    type_map = {
+        "cita": ("restaurant|bar|cafe", "cena romantica"),
+        "moto": ("restaurant|tourist_attraction", "mirador"),
+        "amigos": ("bar|restaurant", "cerveceria"),
+        "café": ("cafe|bakery", "cafe"),
+        "cafe": ("cafe|bakery", "cafe"),
+        "gourmet": ("restaurant", "restaurante gourmet"),
+    }
+    keyword = "restaurante"
+    place_type = "restaurant"
+    for k, v in type_map.items():
+        if k in outing_type.lower():
+            place_type = v[0].split("|")[0]
+            keyword = v[1]
+            break
+
+    radius_m = min(radius_km * 1000, 50000)
+    url = (
+        f"https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+        f"?location={lat},{lon}&radius={radius_m}&type={place_type}&keyword={urllib.parse.quote(keyword)}&key={api_key}"
+    )
+    try:
+        res = await client.get(url, timeout=8.0)
+        if res.status_code == 200:
+            data = res.json()
+            return data.get("results", [])
+    except Exception as e:
+        logger.error(f"Error in Google Places Nearby Search: {e}")
+    return []
+
+
+async def _fetch_google_places_info(client: httpx.AsyncClient, query: str, api_key: str) -> dict:
     """Fetch real Google Place photo and reviews if Google Maps API key is configured."""
-    api_key = settings.GOOGLE_MAPS_API_KEY
     if not api_key:
         return {}
 
@@ -143,7 +197,7 @@ async def _fetch_google_places_info(client: httpx.AsyncClient, query: str) -> di
     return {}
 
 
-async def _generate_with_ai(
+async def _generate_with_ai_or_places(
     outing_type: str,
     target_budget: float,
     area: str,
@@ -154,21 +208,118 @@ async def _generate_with_ai(
     use_location: bool = False,
     latitude: float = None,
     longitude: float = None,
-    radius_km: int = 5
+    radius_km: int = 5,
+    maps_api_key: str = ""
 ) -> OutingPlanResponse:
-    if settings.GEMINI_API_KEY:
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
+    async with httpx.AsyncClient(timeout=25.0) as client:
+        # PATH A: If GPS location is active and Google Maps API key is provided, use Google Places Nearby Search directly!
+        if use_location and latitude is not None and longitude is not None and maps_api_key:
+            nearby_results = await _search_google_places_nearby(
+                client=client,
+                lat=latitude,
+                lon=longitude,
+                radius_km=radius_km,
+                outing_type=outing_type,
+                api_key=maps_api_key
+            )
             
-            location_instructions = ""
-            if use_location and latitude is not None and longitude is not None:
-                location_instructions = f"""
+            # Filter out visited places
+            visited_lower = [v.strip().lower() for v in visited_places.split(",") if v.strip()]
+            filtered = [
+                p for p in nearby_results
+                if not any(v in p.get("name", "").lower() for v in visited_lower)
+            ]
+            # Calculate distance for all places and filter
+            places_with_dist = []
+            for p in filtered:
+                p_lat = p.get("geometry", {}).get("location", {}).get("lat")
+                p_lng = p.get("geometry", {}).get("location", {}).get("lng")
+                if p_lat is not None and p_lng is not None:
+                    d = _haversine_distance_km(latitude, longitude, p_lat, p_lng)
+                    p["_dist"] = d
+                    places_with_dist.append(p)
+
+            if places_with_dist:
+                # First try places strictly within user's requested radius
+                within_radius = [p for p in places_with_dist if p["_dist"] <= radius_km * 1.15]
+                candidate_pool = within_radius if len(within_radius) >= 2 else places_with_dist
+
+                # Sort by quality score (rating * log(reviews))
+                candidate_pool.sort(
+                    key=lambda p: (float(p.get("rating", 4.0)) * math.log(int(p.get("user_ratings_total", 1)) + 1)),
+                    reverse=True
+                )
+                top_places = candidate_pool[:3]
+
+                stops = []
+                cost_shares = [0.35, 0.50, 0.15] if len(top_places) == 3 else [0.45, 0.55]
+                total_cost = 0.0
+
+                for idx, p in enumerate(top_places):
+                    p_name = p.get("name", "Lugar")
+                    p_lat = p.get("geometry", {}).get("location", {}).get("lat", latitude)
+                    p_lng = p.get("geometry", {}).get("location", {}).get("lng", longitude)
+                    dist = p.get("_dist") or _haversine_distance_km(latitude, longitude, p_lat, p_lng)
+
+                    cost = round(target_budget * cost_shares[idx])
+                    total_cost += cost
+
+                    # Real Google photo
+                    photos = p.get("photos", [])
+                    photo_url = None
+                    if photos and "photo_reference" in photos[0]:
+                        ref = photos[0]["photo_reference"]
+                        photo_url = f"https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference={ref}&key={maps_api_key}"
+                    if not photo_url:
+                        photo_url = _get_category_photo(outing_type, p_name)
+
+                    vicinity = p.get("vicinity", area)
+                    rating = float(p.get("rating", 4.7))
+                    reviews_cnt = int(p.get("user_ratings_total", 120))
+                    price_level = p.get("price_level")
+
+                    stops.append(OutingStop(
+                        order=idx + 1,
+                        title=p_name,
+                        category=outing_type.split()[0],
+                        estimated_cost=cost,
+                        description=f"{p_name} en {vicinity}. Calificación {rating}⭐ ({reviews_cnt} reseñas). Excelente para {outing_type.lower()}.",
+                        maps_query=f"{p_name} {vicinity}",
+                        maps_url=f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(p_name + ' ' + vicinity)}",
+                        image_url=photo_url,
+                        rating=rating,
+                        review_count=reviews_cnt,
+                        highlight_review=f"A solo {dist} km de tu ubicación actual.",
+                        distance_km=dist,
+                        latitude=p_lat,
+                        longitude=p_lng,
+                        address=vicinity,
+                        price_level=price_level
+                    ))
+
+                return OutingPlanResponse(
+                    title=f"Plan Cercano: {outing_type} ({radius_km} km)",
+                    summary=f"Encontramos {len(stops)} sitios reales y recomendados en Google Maps a menos de {radius_km} km de tu ubicación.",
+                    total_estimated_cost=total_cost,
+                    safe_budget_available=safe_budget,
+                    stops=stops,
+                    financial_advice=f"El presupuesto de ${total_cost:,.0f} COP encaja dentro de tu disponibilidad de ocio segura."
+                )
+
+        # PATH B: Gemini AI Generation
+        if settings.GEMINI_API_KEY:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
+                
+                location_instructions = ""
+                if use_location and latitude is not None and longitude is not None:
+                    location_instructions = f"""
 - UBICACIÓN GPS EXACTA DEL USUARIO: Latitud {latitude}, Longitud {longitude}
 - RADIO MÁXIMO DE BÚSQUEDA: {radius_km} km a la redonda
-- REQUISITO CRÍTICO DE PROXIMIDAD: Los lugares DEBEN estar ubicados a menos de {radius_km} km de estas coordenadas GPS.
+- REQUISITO CRÍTICO DE PROXIMIDAD: Los lugares DEBEN existir y estar ubicados a menos de {radius_km} km de estas coordenadas GPS.
 """
 
-            prompt = f"""Eres el planificador experto de salidas, ocio y citas de LifeOS.
+                prompt = f"""Eres el planificador experto de salidas, ocio y citas de LifeOS.
 Diseña un itinerario de salida de 2 a 3 paradas específicas y reales para:
 - Tipo de salida: {outing_type}
 - Ciudad o Zona: {area}
@@ -192,13 +343,15 @@ Responde ÚNICAMENTE con un JSON válido en este formato exacto (sin bloques de 
       "rating": 4.8,
       "review_count": 350,
       "highlight_review": "La terraza y el café filtrado son excepcionales.",
-      "distance_km": 2.1
+      "distance_km": 2.1,
+      "latitude": 4.695,
+      "longitude": -74.032,
+      "address": "Calle 119 # 5-18, Bogotá"
     }}
   ],
   "financial_advice": "Consejo financiero sobre el gasto de esta salida"
 }}
 """
-            async with httpx.AsyncClient(timeout=25.0) as client:
                 res = await client.post(url, json={"contents": [{"parts": [{"text": prompt}]}]})
                 if res.status_code == 200:
                     raw = res.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
@@ -217,10 +370,14 @@ Responde ÚNICAMENTE con un JSON válido en este formato exacto (sin bloques de 
                         maps_url = f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(query)}"
                         
                         # Fetch Google Places data if key available
-                        places_info = await _fetch_google_places_info(client, query)
+                        places_info = await _fetch_google_places_info(client, query, maps_api_key)
                         image_url = places_info.get("photo_url") or _get_category_photo(s.get("category", ""), s.get("title", ""))
                         rating = float(places_info.get("rating") or s.get("rating", 4.8))
                         review_count = int(places_info.get("review_count") or s.get("review_count", 150))
+                        
+                        s_lat = s.get("latitude") or (latitude if latitude else 4.6097)
+                        s_lng = s.get("longitude") or (longitude if longitude else -74.0817)
+                        dist = float(s.get("distance_km")) if s.get("distance_km") is not None else (_haversine_distance_km(latitude, longitude, s_lat, s_lng) if latitude and longitude else None)
                         
                         stops.append(OutingStop(
                             order=int(s.get("order", 1)),
@@ -234,7 +391,10 @@ Responde ÚNICAMENTE con un JSON válido en este formato exacto (sin bloques de 
                             rating=rating,
                             review_count=review_count,
                             highlight_review=s.get("highlight_review", "Muy recomendado por sus visitantes."),
-                            distance_km=float(s.get("distance_km")) if s.get("distance_km") is not None else None
+                            distance_km=dist,
+                            latitude=s_lat,
+                            longitude=s_lng,
+                            address=s.get("address", area)
                         ))
                     
                     return OutingPlanResponse(
@@ -245,11 +405,20 @@ Responde ÚNICAMENTE con un JSON válido en este formato exacto (sin bloques de 
                         stops=stops,
                         financial_advice=data.get("financial_advice", "Disfruta dentro del presupuesto seguro.")
                     )
-        except Exception as e:
-            logger.error(f"Error calling Gemini for outing plan: {e}")
+            except Exception as e:
+                logger.error(f"Error calling Gemini for outing plan: {e}")
 
-    # Fallback Curated Colombian Plans if Gemini offline or key not provided
-    return _get_fallback_plan(outing_type, target_budget, area, safe_budget, use_location, radius_km)
+    # PATH C: Fallback Curated Colombian Plans
+    return _get_fallback_plan(
+        outing_type=outing_type,
+        budget=target_budget,
+        area=area,
+        safe_budget=safe_budget,
+        use_location=use_location,
+        radius_km=radius_km,
+        latitude=latitude,
+        longitude=longitude
+    )
 
 
 def _get_fallback_plan(
@@ -258,104 +427,143 @@ def _get_fallback_plan(
     area: str,
     safe_budget: float,
     use_location: bool = False,
-    radius_km: int = 5
+    radius_km: int = 5,
+    latitude: float = None,
+    longitude: float = None
 ) -> OutingPlanResponse:
     dist_prefix = f"Cerca de ti (<{radius_km} km): " if use_location else ""
+    user_lat = latitude if (use_location and latitude is not None) else 4.695
+    user_lng = longitude if (use_location and longitude is not None) else -74.032
+    
+    # Generate realistic nearby coordinates within user's requested radius
+    def _nearby_coord(idx: int):
+        offset = min(float(radius_km) * 0.25 * (idx + 1), float(radius_km) * 0.8) / 111.0
+        s_lat = round(user_lat + (offset * (1 if idx % 2 == 0 else -1)), 6)
+        s_lng = round(user_lng + (offset * (1 if idx > 0 else -1)), 6)
+        dist = _haversine_distance_km(user_lat, user_lng, s_lat, s_lng)
+        return s_lat, s_lng, dist
+
     if "moto" in outing_type.lower() or "rodada" in outing_type.lower():
+        lat1, lng1, d1 = _nearby_coord(0)
+        lat2, lng2, d2 = _nearby_coord(1)
+        lat3, lng3, d3 = _nearby_coord(2)
         stops = [
             OutingStop(
                 order=1,
-                title="Mirador de La Calera",
+                title="Mirador Panorámico & Café de Curva",
                 category="Mirador / Ruta",
                 estimated_cost=budget * 0.25,
-                description="Ruta de montaña en moto, vista panorámica de la ciudad y café caliente en la vía.",
-                maps_query=f"Mirador La Calera {area}",
-                maps_url=f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote('Mirador La Calera ' + area)}",
+                description=f"Ruta panorámica segura en moto en {area}, vista increíble y parada para café caliente.",
+                maps_query=f"Mirador panoramico {area}",
+                maps_url=f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote('Mirador panoramico ' + area)}",
                 image_url=CATEGORY_FALLBACK_PHOTOS["mirador"],
                 rating=4.8,
                 review_count=1240,
                 highlight_review="La vista de noche es impresionante y el café de la curva es clásico.",
-                distance_km=4.5 if use_location else None
+                distance_km=d1 if use_location else None,
+                latitude=lat1,
+                longitude=lng1,
+                address=f"Zona Mirador, {area}"
             ),
             OutingStop(
                 order=2,
-                title="Restaurante Campestre El Tambor",
+                title="Restaurante Campestre & Parrilla",
                 category="Restaurante",
                 estimated_cost=budget * 0.55,
-                description="Parrilla campestre, espacio abierto y parqueadero seguro para motos.",
-                maps_query=f"El Tambor La Calera {area}",
-                maps_url=f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote('El Tambor La Calera ' + area)}",
+                description="Parrilla artesanal, espacio abierto y parqueadero seguro para motos.",
+                maps_query=f"Restaurante campestre parrilla {area}",
+                maps_url=f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote('Restaurante campestre parrilla ' + area)}",
                 image_url=CATEGORY_FALLBACK_PHOTOS["parrilla"],
                 rating=4.6,
                 review_count=3200,
                 highlight_review="Parrilla generosa al aire libre y buen espacio para parquear motos.",
-                distance_km=7.2 if use_location else None
+                distance_km=d2 if use_location else None,
+                latitude=lat2,
+                longitude=lng2,
+                address=f"Corredor Gastronómico, {area}"
             ),
             OutingStop(
                 order=3,
-                title="Café de Especialidad San Alberto",
+                title="Café de Especialidad & Repostería",
                 category="Café",
                 estimated_cost=budget * 0.20,
-                description="Degustación de café premium para cerrar la rodada con buena charla.",
-                maps_query=f"Café San Alberto {area}",
-                maps_url=f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote('Café San Alberto ' + area)}",
+                description="Degustación de café especial colombiano para cerrar la rodada con buena charla.",
+                maps_query=f"Cafe especialidad {area}",
+                maps_url=f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote('Cafe especialidad ' + area)}",
                 image_url=CATEGORY_FALLBACK_PHOTOS["cafe"],
                 rating=4.9,
                 review_count=890,
                 highlight_review="Experiencia de café de 5 estrellas, sabores únicos.",
-                distance_km=2.8 if use_location else None
+                distance_km=d3 if use_location else None,
+                latitude=lat3,
+                longitude=lng3,
+                address=f"Plaza Principal, {area}"
             )
         ]
         title = f"{dist_prefix}Rodada & Almuerzo Campestre"
         summary = f"Plan perfecto para disfrutar tu moto hacia {area} con mirador, gastronomía y parada de café."
     elif "romántic" in outing_type.lower() or "cita" in outing_type.lower():
+        lat1, lng1, d1 = _nearby_coord(0)
+        lat2, lng2, d2 = _nearby_coord(1)
+        lat3, lng3, d3 = _nearby_coord(2)
         stops = [
             OutingStop(
                 order=1,
-                title="Usaquén Plaza & Calles Coloniales",
+                title="Paseo por Calles Coloniales & Parque",
                 category="Paseo",
                 estimated_cost=0.0,
-                description="Caminata tranquila por las calles adoquinadas, tiendas de diseño y ambiente iluminado.",
-                maps_query=f"Plaza de Usaquén {area}",
-                maps_url=f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote('Plaza de Usaquén ' + area)}",
+                description=f"Caminata tranquila por calles peatonales con ambiente iluminado y tiendas de diseño en {area}.",
+                maps_query=f"Paseo peatonal parque {area}",
+                maps_url=f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote('Paseo peatonal parque ' + area)}",
                 image_url=CATEGORY_FALLBACK_PHOTOS["paseo"],
                 rating=4.8,
                 review_count=4500,
                 highlight_review="Hermoso para caminar en pareja, seguro y con excelente ambiente bohemio.",
-                distance_km=2.1 if use_location else None
+                distance_km=d1 if use_location else None,
+                latitude=lat1,
+                longitude=lng1,
+                address=f"Centro Histórico / Parque, {area}"
             ),
             OutingStop(
                 order=2,
-                title="Cena en Bistro Italiano / Trattoria",
+                title="Cena en Trattoria & Bistro Italiano",
                 category="Restaurante",
                 estimated_cost=budget * 0.70,
-                description="Cena íntima con pastas artesanales o pizza napolitana y copa de vino.",
-                maps_query=f"Restaurante Italiano Usaquén {area}",
-                maps_url=f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote('Restaurante Italiano Usaquén ' + area)}",
+                description="Cena íntima con pastas artesanales o pizza napolitana en horno de piedra con copa de vino.",
+                maps_query=f"Restaurante Italiano {area}",
+                maps_url=f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote('Restaurante Italiano ' + area)}",
                 image_url=CATEGORY_FALLBACK_PHOTOS["italiano"],
                 rating=4.7,
                 review_count=1120,
                 highlight_review="Pastas hechas en casa y la lasaña a los cuatro quesos es espectacular.",
-                distance_km=2.3 if use_location else None
+                distance_km=d2 if use_location else None,
+                latitude=lat2,
+                longitude=lng2,
+                address=f"Calle Gourmet, {area}"
             ),
             OutingStop(
                 order=3,
-                title="Postre y Gelato Artesanal",
+                title="Postre & Gelato Artesanal",
                 category="Postres",
                 estimated_cost=budget * 0.30,
-                description="Helado italiano tradicional para terminar la cita con una buena conversación.",
-                maps_query=f"Heladería Artesanal Usaquén {area}",
-                maps_url=f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote('Heladería Artesanal Usaquén ' + area)}",
+                description="Helado italiano tradicional de pistacho o café para terminar la cita con una buena conversación.",
+                maps_query=f"Heladería Artesanal {area}",
+                maps_url=f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote('Heladería Artesanal ' + area)}",
                 image_url=CATEGORY_FALLBACK_PHOTOS["helado"],
                 rating=4.9,
                 review_count=780,
                 highlight_review="El gelato de pistacho y avellana es de otro mundo.",
-                distance_km=2.5 if use_location else None
+                distance_km=d3 if use_location else None,
+                latitude=lat3,
+                longitude=lng3,
+                address=f"Paseo Comercial, {area}"
             )
         ]
-        title = f"{dist_prefix}Noche de Cita & Sabores Coloniales"
+        title = f"{dist_prefix}Noche de Cita & Sabores Íntimos"
         summary = f"Itinerario romántico y relajado en {area} diseñado para conectar sin gastar de más."
     else:
+        lat1, lng1, d1 = _nearby_coord(0)
+        lat2, lng2, d2 = _nearby_coord(1)
         stops = [
             OutingStop(
                 order=1,
@@ -369,7 +577,10 @@ def _get_fallback_plan(
                 rating=4.8,
                 review_count=670,
                 highlight_review="Ambiente acústico perfecto para charlar sin ruido molesto.",
-                distance_km=1.5 if use_location else None
+                distance_km=d1 if use_location else None,
+                latitude=lat1,
+                longitude=lng1,
+                address=f"Avenida Principal, {area}"
             ),
             OutingStop(
                 order=2,
@@ -383,7 +594,10 @@ def _get_fallback_plan(
                 rating=4.7,
                 review_count=1850,
                 highlight_review="Carne angus jugosa en pan brioche artesanal, 10 de 10.",
-                distance_km=2.0 if use_location else None
+                distance_km=d2 if use_location else None,
+                latitude=lat2,
+                longitude=lng2,
+                address=f"Zona Gastronómica, {area}"
             )
         ]
         title = f"{dist_prefix}Tarde de Desconexión en {area}"

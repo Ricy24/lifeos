@@ -90,10 +90,11 @@ dependencies {
     implementation(libs.vico.compose.m3)
     implementation(libs.vico.core)
 
-    // Google Maps SDK & Places
+    // Google Maps SDK, Places & Maps Compose
     implementation("com.google.android.gms:play-services-maps:18.2.0")
     implementation("com.google.android.libraries.places:places:3.4.0")
     implementation("com.google.android.gms:play-services-location:21.2.0")
+    implementation("com.google.maps.android:maps-compose:4.3.3")
 
     // Image loading with Coil
     implementation("io.coil-kt:coil-compose:2.6.0")

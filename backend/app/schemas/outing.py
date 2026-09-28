@@ -19,6 +19,10 @@ class OutingStop(BaseModel):
     review_count: int = 120
     highlight_review: Optional[str] = None
     distance_km: Optional[float] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    address: Optional[str] = None
+    price_level: Optional[int] = None
 
 
 class OutingPlanRequest(BaseModel):
@@ -30,6 +34,7 @@ class OutingPlanRequest(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     radius_km: Optional[int] = 5
+    google_maps_api_key: Optional[str] = None
 
 
 class OutingPlanResponse(BaseModel):
