@@ -5,6 +5,7 @@ LifeOS Finance — Visited Places Model
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import BigInteger, Column, Float, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -14,7 +15,7 @@ class VisitedPlace(Base):
     __tablename__ = "visited_places"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
 
     name = Column(String(150), nullable=False)
     category = Column(String(50), default="Restaurante", nullable=False)  # Restaurante, Café, Bar, Mirador, Actividad

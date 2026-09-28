@@ -23,7 +23,7 @@ def upgrade() -> None:
     op.create_table(
         'motorcycles',
         sa.Column('id', sa.String(length=36), nullable=False),
-        sa.Column('user_id', sa.String(length=36), nullable=False),
+        sa.Column('user_id', postgresql.UUID(as_uuid=False), nullable=False),
         sa.Column('name', sa.String(length=100), nullable=False, server_default='Mi Moto'),
         sa.Column('model', sa.String(length=50), nullable=False, server_default='2024'),
         sa.Column('current_mileage', sa.Integer(), nullable=False, server_default='0'),

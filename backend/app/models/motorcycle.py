@@ -5,6 +5,7 @@ LifeOS Finance — Motorcycle Model
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import BigInteger, Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -14,7 +15,7 @@ class Motorcycle(Base):
     __tablename__ = "motorcycles"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
 
     name = Column(String(100), default="Mi Moto", nullable=False)
     model = Column(String(50), default="2024", nullable=False)
