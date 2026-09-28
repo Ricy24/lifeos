@@ -7,6 +7,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal
 import re
 from typing import Any, Optional
 
@@ -206,6 +207,7 @@ Mensaje del usuario: "{text}"
                 return
 
             if intent in ["expense", "income"] and amount and amount > 0:
+                dec_amount = Decimal(str(amount))
                 # Find matching account
                 accounts_res = await db.execute(select(Account).where(Account.user_id == user.id))
                 accounts = accounts_res.scalars().all()
@@ -226,7 +228,7 @@ Mensaje del usuario: "{text}"
                             user_id=user.id,
                             name="Billetera / Nequi",
                             account_type=AccountType.SAVINGS,
-                            balance=0.0,
+                            balance=Decimal("0.0"),
                             currency="COP",
                             include_in_total=True
                         )
@@ -235,12 +237,12 @@ Mensaje del usuario: "{text}"
 
                 # Adjust balance
                 if intent == "expense":
-                    target_account.balance -= float(amount)
+                    target_account.balance -= dec_amount
                     tx_type = TransactionType.EXPENSE
                     icon = "💸"
                     type_label = "Gasto"
                 else:
-                    target_account.balance += float(amount)
+                    target_account.balance += dec_amount
                     tx_type = TransactionType.INCOME
                     icon = "💰"
                     type_label = "Ingreso"
@@ -249,7 +251,7 @@ Mensaje del usuario: "{text}"
                 transaction = Transaction(
                     user_id=user.id,
                     account_id=target_account.id,
-                    amount=float(amount),
+                    amount=dec_amount,
                     transaction_type=tx_type,
                     category=category,
                     description=description,
