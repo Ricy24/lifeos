@@ -124,6 +124,46 @@ def _get_category_photo(category: str, title: str) -> str:
     return "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80"
 
 
+import asyncio
+import random
+
+
+async def _search_google_places_single(
+    client: httpx.AsyncClient,
+    lat: float,
+    lon: float,
+    radius_m: int,
+    place_type: str,
+    keyword: str,
+    api_key: str,
+    page_token: str = None
+) -> tuple:
+    """Single Nearby Search request. Returns (results_list, next_page_token)."""
+    params = {
+        "location": f"{lat},{lon}",
+        "radius": str(radius_m),
+        "key": api_key,
+    }
+    if place_type:
+        params["type"] = place_type
+    if keyword:
+        params["keyword"] = keyword
+    if page_token:
+        params["pagetoken"] = page_token
+
+    url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+    try:
+        res = await client.get(url, params=params, timeout=10.0)
+        if res.status_code == 200:
+            data = res.json()
+            results = data.get("results", [])
+            npt = data.get("next_page_token")
+            return results, npt
+    except Exception as e:
+        logger.error(f"Error in Google Places Nearby Search ({place_type}/{keyword}): {e}")
+    return [], None
+
+
 async def _search_google_places_nearby(
     client: httpx.AsyncClient,
     lat: float,
@@ -132,36 +172,81 @@ async def _search_google_places_nearby(
     outing_type: str,
     api_key: str
 ) -> list:
-    """Queries Google Places Nearby Search for real venues in the given radius."""
-    type_map = {
-        "cita": ("restaurant|bar|cafe", "cena romantica"),
-        "moto": ("restaurant|tourist_attraction", "mirador"),
-        "amigos": ("bar|restaurant", "cerveceria"),
-        "café": ("cafe|bakery", "cafe"),
-        "cafe": ("cafe|bakery", "cafe"),
-        "gourmet": ("restaurant", "restaurante gourmet"),
+    """Queries Google Places with MULTIPLE types and keywords in parallel for maximum venue variety."""
+    # Map outing types to multiple (type, keyword) queries for diversity
+    type_queries = {
+        "cita": [
+            ("restaurant", "cena romantica"),
+            ("restaurant", "restaurante italiano"),
+            ("bar", "cocteleria"),
+            ("cafe", "cafe terraza"),
+            ("restaurant", "restaurante elegante"),
+        ],
+        "moto": [
+            ("restaurant", "restaurante campestre"),
+            ("tourist_attraction", "mirador"),
+            ("restaurant", "parrilla"),
+            ("cafe", "cafe ruta"),
+            ("restaurant", "asadero"),
+        ],
+        "amigos": [
+            ("bar", "cerveceria artesanal"),
+            ("restaurant", "hamburguesas gourmet"),
+            ("bar", "bar deportivo"),
+            ("restaurant", "alitas"),
+            ("bowling_alley", "bolos"),
+        ],
+        "café": [
+            ("cafe", "cafe especialidad"),
+            ("bakery", "panaderia artesanal"),
+            ("cafe", "cafe coworking"),
+            ("cafe", "cafe postres"),
+        ],
+        "cafe": [
+            ("cafe", "cafe especialidad"),
+            ("bakery", "panaderia artesanal"),
+            ("cafe", "cafe postres"),
+        ],
+        "gourmet": [
+            ("restaurant", "restaurante gourmet"),
+            ("restaurant", "restaurante fusion"),
+            ("restaurant", "sushi"),
+            ("restaurant", "comida peruana"),
+            ("restaurant", "steak house"),
+        ],
     }
-    keyword = "restaurante"
-    place_type = "restaurant"
-    for k, v in type_map.items():
+
+    # Find the best matching query set
+    queries = [("restaurant", "restaurante"), ("cafe", "cafe")]
+    for k, v in type_queries.items():
         if k in outing_type.lower():
-            place_type = v[0].split("|")[0]
-            keyword = v[1]
+            queries = v
             break
 
     radius_m = min(radius_km * 1000, 50000)
-    url = (
-        f"https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-        f"?location={lat},{lon}&radius={radius_m}&type={place_type}&keyword={urllib.parse.quote(keyword)}&key={api_key}"
-    )
-    try:
-        res = await client.get(url, timeout=8.0)
-        if res.status_code == 200:
-            data = res.json()
-            return data.get("results", [])
-    except Exception as e:
-        logger.error(f"Error in Google Places Nearby Search: {e}")
-    return []
+
+    # Launch all queries in parallel
+    tasks = [
+        _search_google_places_single(client, lat, lon, radius_m, pt, kw, api_key)
+        for pt, kw in queries
+    ]
+    results_list = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Deduplicate by place_id across all queries
+    seen_place_ids = set()
+    all_results = []
+    for result in results_list:
+        if isinstance(result, Exception):
+            continue
+        places, npt = result
+        for p in places:
+            pid = p.get("place_id", "")
+            if pid and pid not in seen_place_ids:
+                seen_place_ids.add(pid)
+                all_results.append(p)
+
+    logger.info(f"Google Places: {len(all_results)} unique venues found across {len(queries)} parallel queries")
+    return all_results
 
 
 async def _fetch_google_places_info(client: httpx.AsyncClient, query: str, api_key: str) -> dict:
@@ -197,6 +282,32 @@ async def _fetch_google_places_info(client: httpx.AsyncClient, query: str, api_k
     return {}
 
 
+def _classify_place_category(place: dict) -> str:
+    """Extract a human-readable category from Google Places types."""
+    types = place.get("types", [])
+    type_labels = {
+        "restaurant": "Restaurante",
+        "cafe": "Café",
+        "bar": "Bar",
+        "bakery": "Panadería",
+        "tourist_attraction": "Atracción",
+        "night_club": "Discoteca",
+        "bowling_alley": "Entretenimiento",
+        "meal_takeaway": "Comida Rápida",
+        "meal_delivery": "Delivery",
+    }
+    for t in types:
+        if t in type_labels:
+            return type_labels[t]
+    return "Lugar"
+
+
+def _price_level_label(price_level: int) -> str:
+    """Convert Google price_level (0-4) to readable label."""
+    labels = {0: "Gratis", 1: "Económico $", 2: "Moderado $$", 3: "Costoso $$$", 4: "Muy Costoso $$$$"}
+    return labels.get(price_level, "Sin datos")
+
+
 async def _generate_with_ai_or_places(
     outing_type: str,
     target_budget: float,
@@ -211,9 +322,15 @@ async def _generate_with_ai_or_places(
     radius_km: int = 5,
     maps_api_key: str = ""
 ) -> OutingPlanResponse:
+    logger.info(
+        f"[OUTINGS] Generating plan: type={outing_type}, budget={target_budget}, area={area}, "
+        f"use_location={use_location}, lat={latitude}, lon={longitude}, radius={radius_km}km, "
+        f"maps_key_present={'YES (' + str(len(maps_api_key)) + ' chars)' if maps_api_key else 'NO (EMPTY)'}"
+    )
     async with httpx.AsyncClient(timeout=25.0) as client:
-        # PATH A: If GPS location is active and Google Maps API key is provided, use Google Places Nearby Search directly!
+        # PATH A: GPS + Google Maps API → real venues via parallel multi-type Nearby Search
         if use_location and latitude is not None and longitude is not None and maps_api_key:
+            logger.info(f"[OUTINGS] → PATH A: Google Places Nearby Search (GPS + API Key)")
             nearby_results = await _search_google_places_nearby(
                 client=client,
                 lat=latitude,
@@ -222,46 +339,85 @@ async def _generate_with_ai_or_places(
                 outing_type=outing_type,
                 api_key=maps_api_key
             )
-            
+
             # Filter out visited places
             visited_lower = [v.strip().lower() for v in visited_places.split(",") if v.strip()]
             filtered = [
                 p for p in nearby_results
                 if not any(v in p.get("name", "").lower() for v in visited_lower)
             ]
-            # Calculate distance for all places and filter
+
+            # Calculate distance and enforce strict radius filtering
             places_with_dist = []
             for p in filtered:
                 p_lat = p.get("geometry", {}).get("location", {}).get("lat")
                 p_lng = p.get("geometry", {}).get("location", {}).get("lng")
                 if p_lat is not None and p_lng is not None:
                     d = _haversine_distance_km(latitude, longitude, p_lat, p_lng)
-                    p["_dist"] = d
-                    places_with_dist.append(p)
+                    # STRICT: only include places truly within the user's radius
+                    if d <= radius_km * 1.05:
+                        p["_dist"] = d
+                        places_with_dist.append(p)
 
-            if places_with_dist:
-                # First try places strictly within user's requested radius
-                within_radius = [p for p in places_with_dist if p["_dist"] <= radius_km * 1.15]
-                candidate_pool = within_radius if len(within_radius) >= 2 else places_with_dist
+            # Filter out places with very low ratings or no ratings
+            quality_places = [
+                p for p in places_with_dist
+                if float(p.get("rating", 0)) >= 3.5 and int(p.get("user_ratings_total", 0)) >= 5
+            ]
+            # Fallback if filtering is too aggressive
+            if len(quality_places) < 3:
+                quality_places = places_with_dist
 
-                # Sort by quality score (rating * log(reviews))
-                candidate_pool.sort(
-                    key=lambda p: (float(p.get("rating", 4.0)) * math.log(int(p.get("user_ratings_total", 1)) + 1)),
+            if quality_places:
+                # Sort by quality score (rating * log(reviews + 1)) with randomization
+                quality_places.sort(
+                    key=lambda p: (
+                        float(p.get("rating", 4.0)) * math.log(int(p.get("user_ratings_total", 1)) + 1)
+                    ),
                     reverse=True
                 )
-                top_places = candidate_pool[:3]
+
+                # Pick top N with some randomization for variety
+                max_venues = min(10, len(quality_places))
+                # Top-tier (best 40%), mid-tier (next 35%), discovery (rest)
+                top_tier_count = max(1, int(max_venues * 0.4))
+                mid_tier_count = max(1, int(max_venues * 0.35))
+
+                top_tier = quality_places[:max(3, len(quality_places) // 3)]
+                mid_tier = quality_places[len(top_tier):len(top_tier) + max(3, len(quality_places) // 3)]
+                discovery = quality_places[len(top_tier) + len(mid_tier):]
+
+                # Shuffle within tiers for variety on each request
+                random.shuffle(top_tier)
+                random.shuffle(mid_tier)
+                random.shuffle(discovery)
+
+                selected = []
+                selected.extend(top_tier[:top_tier_count])
+                selected.extend(mid_tier[:mid_tier_count])
+                remaining = max_venues - len(selected)
+                if remaining > 0 and discovery:
+                    selected.extend(discovery[:remaining])
+                # Fill from any remaining if we still need more
+                if len(selected) < max_venues:
+                    all_remaining = [p for p in quality_places if p not in selected]
+                    selected.extend(all_remaining[:max_venues - len(selected)])
+
+                # Sort final selection by distance for a natural itinerary
+                selected.sort(key=lambda p: p.get("_dist", 999))
 
                 stops = []
-                cost_shares = [0.35, 0.50, 0.15] if len(top_places) == 3 else [0.45, 0.55]
                 total_cost = 0.0
+                num_stops = len(selected)
 
-                for idx, p in enumerate(top_places):
+                for idx, p in enumerate(selected):
                     p_name = p.get("name", "Lugar")
                     p_lat = p.get("geometry", {}).get("location", {}).get("lat", latitude)
                     p_lng = p.get("geometry", {}).get("location", {}).get("lng", longitude)
                     dist = p.get("_dist") or _haversine_distance_km(latitude, longitude, p_lat, p_lng)
 
-                    cost = round(target_budget * cost_shares[idx])
+                    # Distribute budget proportionally
+                    cost = round(target_budget / num_stops)
                     total_cost += cost
 
                     # Real Google photo
@@ -274,23 +430,33 @@ async def _generate_with_ai_or_places(
                         photo_url = _get_category_photo(outing_type, p_name)
 
                     vicinity = p.get("vicinity", area)
-                    rating = float(p.get("rating", 4.7))
-                    reviews_cnt = int(p.get("user_ratings_total", 120))
+                    rating = float(p.get("rating", 0))
+                    reviews_cnt = int(p.get("user_ratings_total", 0))
                     price_level = p.get("price_level")
+                    category = _classify_place_category(p)
+                    price_label = _price_level_label(price_level) if price_level is not None else ""
+
+                    # Build a rich description
+                    desc_parts = [f"{p_name} en {vicinity}."]
+                    if rating > 0:
+                        desc_parts.append(f"Calificación {rating}⭐ ({reviews_cnt} reseñas).")
+                    if price_label:
+                        desc_parts.append(f"Nivel de precios: {price_label}.")
+                    desc_parts.append(f"A {dist:.1f} km de ti.")
 
                     stops.append(OutingStop(
                         order=idx + 1,
                         title=p_name,
-                        category=outing_type.split()[0],
+                        category=category,
                         estimated_cost=cost,
-                        description=f"{p_name} en {vicinity}. Calificación {rating}⭐ ({reviews_cnt} reseñas). Excelente para {outing_type.lower()}.",
+                        description=" ".join(desc_parts),
                         maps_query=f"{p_name} {vicinity}",
                         maps_url=f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(p_name + ' ' + vicinity)}",
                         image_url=photo_url,
                         rating=rating,
                         review_count=reviews_cnt,
-                        highlight_review=f"A solo {dist} km de tu ubicación actual.",
-                        distance_km=dist,
+                        highlight_review=f"A solo {dist:.1f} km de tu ubicación actual." + (f" Precio: {price_label}" if price_label else ""),
+                        distance_km=round(dist, 1),
                         latitude=p_lat,
                         longitude=p_lng,
                         address=vicinity,
@@ -298,15 +464,18 @@ async def _generate_with_ai_or_places(
                     ))
 
                 return OutingPlanResponse(
-                    title=f"Plan Cercano: {outing_type} ({radius_km} km)",
-                    summary=f"Encontramos {len(stops)} sitios reales y recomendados en Google Maps a menos de {radius_km} km de tu ubicación.",
+                    title=f"📍 {outing_type} — {len(stops)} lugares a ≤{radius_km} km",
+                    summary=f"Encontramos {len(stops)} sitios reales en Google Maps cerca de ti. Toca un marcador en el mapa para ver detalles.",
                     total_estimated_cost=total_cost,
                     safe_budget_available=safe_budget,
                     stops=stops,
-                    financial_advice=f"El presupuesto de ${total_cost:,.0f} COP encaja dentro de tu disponibilidad de ocio segura."
+                    financial_advice=f"Presupuesto estimado ${total_cost:,.0f} COP dentro de tu disponibilidad segura de ocio."
                 )
+            else:
+                logger.warning(f"[OUTINGS] PATH A: No quality places found after filtering. raw_results={len(nearby_results)}, filtered={len(filtered)}, within_radius={len(places_with_dist)}, quality={len(quality_places) if 'quality_places' in dir() else 'N/A'}")
 
         # PATH B: Gemini AI Generation
+        logger.info(f"[OUTINGS] → PATH B: Trying Gemini AI (key={'YES' if settings.GEMINI_API_KEY else 'NO'})")
         if settings.GEMINI_API_KEY:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
@@ -409,6 +578,7 @@ Responde ÚNICAMENTE con un JSON válido en este formato exacto (sin bloques de 
                 logger.error(f"Error calling Gemini for outing plan: {e}")
 
     # PATH C: Fallback Curated Colombian Plans
+    logger.warning(f"[OUTINGS] → PATH C: FALLBACK plan (no Google Places results, no Gemini). This produces GENERIC names!")
     return _get_fallback_plan(
         outing_type=outing_type,
         budget=target_budget,

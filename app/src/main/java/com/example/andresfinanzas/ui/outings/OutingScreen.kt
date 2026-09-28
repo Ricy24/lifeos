@@ -773,7 +773,7 @@ private fun OutingPlannerTab(
                 }
             }
 
-            // Mode 0: Interactive Google Map with Marker Selection & Floating Detail Card
+            // Mode 0: Interactive Google Map with Bottom-Sheet Style Venue Cards
             if (resultViewMode == 0) {
                 item {
                     val userLatLng = remember(currentLatitude, currentLongitude) {
@@ -787,12 +787,18 @@ private fun OutingPlannerTab(
                     val mapCenter = userLatLng ?: firstStopCoord ?: LatLng(4.6097, -74.0817)
 
                     val cameraPositionState = rememberCameraPositionState {
-                        position = CameraPosition.fromLatLngZoom(mapCenter, if (selectedRadiusKm <= 3) 14.5f else 13.5f)
+                        position = CameraPosition.fromLatLngZoom(mapCenter, when {
+                            selectedRadiusKm <= 1 -> 15.5f
+                            selectedRadiusKm <= 3 -> 14.5f
+                            selectedRadiusKm <= 5 -> 13.5f
+                            selectedRadiusKm <= 10 -> 12.5f
+                            else -> 11.5f
+                        })
                     }
 
                     val currentSelectedStop = plan.stops.getOrNull(selectedStopIndex) ?: plan.stops.firstOrNull()
 
-                    // Move camera when selected stop changes
+                    // Animate camera to selected stop
                     LaunchedEffect(selectedStopIndex) {
                         currentSelectedStop?.let { stop ->
                             if (stop.latitude != null && stop.longitude != null) {
@@ -806,15 +812,25 @@ private fun OutingPlannerTab(
                         }
                     }
 
+                    // Category color mapping for markers
+                    val markerColors = mapOf(
+                        "Restaurante" to BitmapDescriptorFactory.HUE_RED,
+                        "Café" to BitmapDescriptorFactory.HUE_ORANGE,
+                        "Bar" to BitmapDescriptorFactory.HUE_VIOLET,
+                        "Panadería" to BitmapDescriptorFactory.HUE_YELLOW,
+                        "Atracción" to BitmapDescriptorFactory.HUE_GREEN,
+                        "Entretenimiento" to BitmapDescriptorFactory.HUE_CYAN,
+                    )
+
                     Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
-                        // Google Map Container
+                        // -- Full Map Container with overlays --
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(380.dp)
+                                .height(420.dp)
                                 .clip(RoundedCornerShape(22.dp))
                         ) {
                             GoogleMap(
@@ -823,27 +839,34 @@ private fun OutingPlannerTab(
                                 properties = MapProperties(isMyLocationEnabled = userLatLng != null),
                                 uiSettings = MapUiSettings(
                                     zoomControlsEnabled = false,
-                                    myLocationButtonEnabled = true
+                                    myLocationButtonEnabled = true,
+                                    mapToolbarEnabled = false
                                 )
                             ) {
-                                // Draw search radius circle around user
+                                // Search radius circle
                                 userLatLng?.let { uPos ->
                                     Circle(
                                         center = uPos,
                                         radius = (selectedRadiusKm * 1000).toDouble(),
-                                        fillColor = Color(0x221E88E5),
-                                        strokeColor = Color(0xFF1E88E5),
-                                        strokeWidth = 3f
+                                        fillColor = Color(0x181E88E5),
+                                        strokeColor = Color(0xFF42A5F5),
+                                        strokeWidth = 2.5f
                                     )
                                 }
 
-                                // Place markers on map
+                                // Category-colored markers for each venue
                                 plan.stops.forEachIndexed { idx, stop ->
                                     if (stop.latitude != null && stop.longitude != null) {
+                                        val hue = markerColors[stop.category] ?: BitmapDescriptorFactory.HUE_AZURE
+                                        val isSelected = idx == selectedStopIndex
                                         Marker(
                                             state = MarkerState(position = LatLng(stop.latitude, stop.longitude)),
-                                            title = "${stop.order}. ${stop.title}",
-                                            snippet = "${currencyFormatter.format(stop.estimated_cost)} • ⭐ ${stop.rating ?: 4.8}",
+                                            title = stop.title,
+                                            snippet = "${stop.category} • ⭐ ${stop.rating ?: 0} • 📍 ${stop.distance_km ?: "?"} km",
+                                            icon = BitmapDescriptorFactory.defaultMarker(
+                                                if (isSelected) BitmapDescriptorFactory.HUE_BLUE else hue
+                                            ),
+                                            alpha = if (isSelected) 1f else 0.85f,
                                             onClick = {
                                                 selectedStopIndex = idx
                                                 false
@@ -853,11 +876,10 @@ private fun OutingPlannerTab(
                                 }
                             }
 
-                            // Overlay badge indicating places on map
+                            // Top-left: Results badge
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                                shadowElevation = 4.dp,
+                                color = Color.Black.copy(alpha = 0.7f),
                                 modifier = Modifier
                                     .align(Alignment.TopStart)
                                     .padding(12.dp)
@@ -869,37 +891,84 @@ private fun OutingPlannerTab(
                                     Icon(
                                         Icons.Default.Place,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
+                                        tint = Color(0xFF42A5F5),
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(Modifier.width(4.dp))
                                     Text(
-                                        "${plan.stops.size} lugares en radio de $selectedRadiusKm km",
+                                        "${plan.stops.size} lugares • ${selectedRadiusKm} km",
                                         style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
                                     )
+                                }
+                            }
+
+                            // Top-right: Category legend (compact)
+                            val uniqueCategories = plan.stops.map { it.category }.distinct().take(4)
+                            if (uniqueCategories.size > 1) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color.Black.copy(alpha = 0.65f),
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(12.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        uniqueCategories.forEach { cat ->
+                                            val catColor = when (cat) {
+                                                "Restaurante" -> Color(0xFFEF5350)
+                                                "Café" -> Color(0xFFFF9800)
+                                                "Bar" -> Color(0xFFAB47BC)
+                                                "Panadería" -> Color(0xFFFFEB3B)
+                                                "Atracción" -> Color(0xFF66BB6A)
+                                                else -> Color(0xFF42A5F5)
+                                            }
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(8.dp)
+                                                        .clip(CircleShape)
+                                                        .background(catColor)
+                                                )
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(
+                                                    cat,
+                                                    fontSize = 9.sp,
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
 
-                        // Floating / Detail Venue Card for the currently selected stop
-                        currentSelectedStop?.let { stop ->
-                            VenueMapDetailCard(
-                                stop = stop,
-                                currentIndex = selectedStopIndex,
-                                totalStops = plan.stops.size,
-                                currencyFormatter = currencyFormatter,
-                                onPrevious = {
-                                    if (selectedStopIndex > 0) selectedStopIndex--
-                                    else selectedStopIndex = plan.stops.size - 1
-                                },
-                                onNext = {
-                                    if (selectedStopIndex < plan.stops.size - 1) selectedStopIndex++
-                                    else selectedStopIndex = 0
-                                },
-                                onOpenMaps = onOpenMaps,
-                                onSaveVisited = onSaveStopAsVisited
-                            )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // -- Horizontal Scrollable Venue Cards (Bottom Sheet Style) --
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) {
+                            items(plan.stops.size) { idx ->
+                                val stop = plan.stops[idx]
+                                val isSelected = idx == selectedStopIndex
+                                VenueCarouselCard(
+                                    stop = stop,
+                                    index = idx,
+                                    isSelected = isSelected,
+                                    currencyFormatter = currencyFormatter,
+                                    onClick = { selectedStopIndex = idx },
+                                    onOpenMaps = onOpenMaps,
+                                    onSaveVisited = onSaveStopAsVisited
+                                )
+                            }
                         }
                     }
                 }
@@ -1090,28 +1159,33 @@ private fun OutingPlannerTab(
 }
 
 @Composable
-private fun VenueMapDetailCard(
+private fun VenueCarouselCard(
     stop: OutingStopRemote,
-    currentIndex: Int,
-    totalStops: Int,
+    index: Int,
+    isSelected: Boolean,
     currencyFormatter: NumberFormat,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
+    onClick: () -> Unit,
     onOpenMaps: (String) -> Unit,
     onSaveVisited: (OutingStopRemote) -> Unit
 ) {
+    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
+    val elevation = if (isSelected) 8.dp else 3.dp
+
     Card(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-        modifier = Modifier.fillMaxWidth()
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation),
+        border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, borderColor) else null,
+        modifier = Modifier
+            .width(280.dp)
+            .clickable { onClick() }
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Photo with category badge & navigation arrows
+            // Photo with overlays
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(150.dp)
+                    .height(130.dp)
             ) {
                 if (!stop.image_url.isNullOrBlank()) {
                     AsyncImage(
@@ -1119,172 +1193,202 @@ private fun VenueMapDetailCard(
                         contentDescription = stop.title,
                         modifier = Modifier
                             .fillMaxSize()
-                            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)),
+                            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)),
                         contentScale = ContentScale.Crop
                     )
                 } else {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.primaryContainer),
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primaryContainer,
+                                        MaterialTheme.colorScheme.secondaryContainer
+                                    )
+                                )
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Place, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp))
+                        Icon(Icons.Default.Restaurant, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
                     }
                 }
 
-                // Place Counter Pill (e.g. 1 / 3)
+                // Gradient overlay at bottom of photo
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
+                            )
+                        )
+                )
+
+                // Category badge top-left
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color.Black.copy(alpha = 0.65f),
+                    shape = RoundedCornerShape(8.dp),
+                    color = when (stop.category) {
+                        "Restaurante" -> Color(0xFFEF5350)
+                        "Café" -> Color(0xFFFF9800)
+                        "Bar" -> Color(0xFFAB47BC)
+                        "Panadería" -> Color(0xFFFFEB3B)
+                        "Atracción" -> Color(0xFF66BB6A)
+                        else -> Color(0xFF42A5F5)
+                    }.copy(alpha = 0.9f),
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(10.dp)
+                        .padding(8.dp)
                 ) {
                     Text(
-                        "Lugar ${currentIndex + 1} de $totalStops",
+                        stop.category,
                         color = Color.White,
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
 
-                // Next/Previous arrows over the image
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.Center)
-                        .padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    IconButton(
-                        onClick = onPrevious,
+                // Distance badge top-right
+                stop.distance_km?.let { dist ->
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.Black.copy(alpha = 0.7f),
                         modifier = Modifier
-                            .size(36.dp)
-                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
                     ) {
-                        Icon(Icons.Default.ChevronLeft, contentDescription = "Anterior", tint = Color.White)
-                    }
-
-                    IconButton(
-                        onClick = onNext,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                    ) {
-                        Icon(Icons.Default.ChevronRight, contentDescription = "Siguiente", tint = Color.White)
+                        Text(
+                            "📍 ${String.format(Locale.US, "%.1f", dist)} km",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
                     }
                 }
+
+                // Order number bottom-left on gradient
+                Text(
+                    "${index + 1}",
+                    color = Color.White,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(10.dp)
+                )
             }
 
-            // Information Body
+            // Info body
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // Name & Price
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            stop.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            stop.address ?: stop.category,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    Text(
-                        currencyFormatter.format(stop.estimated_cost),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                // Distance & Rating Row
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFFFB800), modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(2.dp))
-                            Text("${stop.rating ?: 4.8}", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            Text(" (${stop.review_count ?: 120})", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-
-                    stop.distance_km?.let { dist ->
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-                        ) {
-                            Text(
-                                "📍 ${String.format(Locale.US, "%.1f", dist)} km de ti",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-
-                // Description
+                // Name
                 Text(
-                    stop.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
+                    stop.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Action Buttons
+                // Address
+                Text(
+                    stop.address ?: stop.category,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = 11.sp
+                )
+
+                // Rating + reviews + price level row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // Stars
+                    val ratingVal = stop.rating ?: 0.0
+                    repeat(5) { starIdx ->
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = null,
+                            tint = if (starIdx < ratingVal.toInt()) Color(0xFFFFB800) else Color.Gray.copy(alpha = 0.25f),
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+                    Text(
+                        "${ratingVal}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "(${stop.review_count ?: 0})",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Price level indicator
+                stop.price_level?.let { pl ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        repeat(4) { lvl ->
+                            Text(
+                                "$",
+                                fontSize = 11.sp,
+                                fontWeight = if (lvl < pl) FontWeight.Bold else FontWeight.Normal,
+                                color = if (lvl < pl) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.3f)
+                            )
+                        }
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            when (pl) {
+                                0 -> "Gratis"
+                                1 -> "Económico"
+                                2 -> "Moderado"
+                                3 -> "Costoso"
+                                4 -> "Lujoso"
+                                else -> ""
+                            },
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Action buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Button(
                         onClick = { onOpenMaps(stop.maps_url) },
-                        modifier = Modifier.weight(1.2f),
+                        modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Icon(Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Cómo Llegar (Maps)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Ir", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
 
                     OutlinedButton(
                         onClick = { onSaveVisited(stop) },
-                        modifier = Modifier.weight(0.9f),
-                        shape = RoundedCornerShape(12.dp)
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Icon(Icons.Default.BookmarkAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.BookmarkAdd, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Guardar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Guardar", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
