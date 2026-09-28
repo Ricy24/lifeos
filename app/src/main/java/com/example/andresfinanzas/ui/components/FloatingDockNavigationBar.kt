@@ -8,18 +8,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
@@ -34,7 +32,6 @@ import androidx.compose.material.icons.outlined.TwoWheeler
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -42,29 +39,30 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 /**
- * Navigation item representation for the iOS-inspired Floating Dock.
+ * Minimalist Navigation Item representation (Icon-Only).
  */
-data class DockNavItem(
+data class GlassDockItem(
     val route: String,
-    val title: String,
+    val description: String,
     val unselectedIcon: ImageVector,
     val selectedIcon: ImageVector
 )
 
 /**
- * Style 11: Dock Style (iOS Inspired)
- * Floating detached capsule navigation bar with soft elevations,
- * smooth animations, pill highlights, and micro-interactions.
+ * Ultra-Sleek iOS Frosted Glassmorphism Floating Dock.
+ * - Icon-Only (No text clutter, minimalist aesthetic).
+ * - Multi-layered frosted glass with specular highlight border.
+ * - Glowing active capsule with spring micro-interaction.
+ * - Floating detached capsule layout.
  */
 @Composable
 fun FloatingDockNavigationBar(
@@ -72,37 +70,73 @@ fun FloatingDockNavigationBar(
     onNavigate: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isDark = isSystemInDarkTheme()
+
     val navItems = remember {
         listOf(
-            DockNavItem(
+            GlassDockItem(
                 route = "dashboard",
-                title = "Inicio",
+                description = "Inicio",
                 unselectedIcon = Icons.Outlined.Home,
                 selectedIcon = Icons.Filled.Home
             ),
-            DockNavItem(
+            GlassDockItem(
                 route = "accounts",
-                title = "Cuentas",
+                description = "Cuentas",
                 unselectedIcon = Icons.Outlined.AccountBalanceWallet,
                 selectedIcon = Icons.Filled.AccountBalanceWallet
             ),
-            DockNavItem(
+            GlassDockItem(
                 route = "metrics",
-                title = "Métricas",
+                description = "Métricas",
                 unselectedIcon = Icons.AutoMirrored.Outlined.TrendingUp,
                 selectedIcon = Icons.AutoMirrored.Filled.TrendingUp
             ),
-            DockNavItem(
+            GlassDockItem(
                 route = "goals_debts",
-                title = "Metas",
+                description = "Metas y Deudas",
                 unselectedIcon = Icons.Outlined.Flag,
                 selectedIcon = Icons.Filled.Flag
             ),
-            DockNavItem(
+            GlassDockItem(
                 route = "motorcycle",
-                title = "Mi Moto",
+                description = "Mi Moto",
                 unselectedIcon = Icons.Outlined.TwoWheeler,
                 selectedIcon = Icons.Filled.TwoWheeler
+            )
+        )
+    }
+
+    // Frosted Glass Gradients for Dark and Light Themes
+    val glassBgBrush = if (isDark) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xCC1A1F30), // Frosted translucent deep slate
+                Color(0xD90D111A)  // Dark glassy bottom
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xE6FFFFFF), // Frosted crisp white glass
+                Color(0xCCEEF2F6)  // Soft glassy silver
+            )
+        )
+    }
+
+    val glassBorderBrush = if (isDark) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0x59FFFFFF), // Top specular highlight (35% white)
+                Color(0x1AFFFFFF), // Mid fade
+                Color(0x08FFFFFF)  // Bottom edge
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xB3FFFFFF), // Crisp upper reflection
+                Color(0x33000000)  // Soft bottom shadow border
             )
         )
     }
@@ -111,29 +145,29 @@ fun FloatingDockNavigationBar(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 24.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Floating Dock Container (iOS Inspired)
+        // Floating Glass Dock Pod
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(64.dp)
                 .shadow(
-                    elevation = 16.dp,
-                    shape = RoundedCornerShape(32.dp),
-                    spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
-                    ambientColor = Color.Black.copy(alpha = 0.15f)
+                    elevation = 20.dp,
+                    shape = CircleShape,
+                    spotColor = MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.35f else 0.20f),
+                    ambientColor = Color.Black.copy(alpha = if (isDark) 0.30f else 0.15f)
                 )
-                .clip(RoundedCornerShape(32.dp))
-                .background(
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
-                )
+                .clip(CircleShape)
+                .background(brush = glassBgBrush)
                 .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
-                    shape = RoundedCornerShape(32.dp)
+                    width = 1.2.dp,
+                    brush = glassBorderBrush,
+                    shape = CircleShape
                 )
-                .padding(horizontal = 8.dp, vertical = 6.dp)
+                .padding(horizontal = 8.dp),
+            contentAlignment = Alignment.Center
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -143,7 +177,7 @@ fun FloatingDockNavigationBar(
                 navItems.forEach { item ->
                     val isSelected = currentScreen == item.route
 
-                    DockItem(
+                    GlassDockIconItem(
                         item = item,
                         isSelected = isSelected,
                         onClick = { onNavigate(item.route) }
@@ -155,90 +189,99 @@ fun FloatingDockNavigationBar(
 }
 
 @Composable
-private fun DockItem(
-    item: DockNavItem,
+private fun GlassDockIconItem(
+    item: GlassDockItem,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
+    val isDark = isSystemInDarkTheme()
 
-    // Spring animation for smooth scale bump on selection
+    // Spring bouncy scale effect
     val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.10f else 1.0f,
+        targetValue = if (isSelected) 1.15f else 1.0f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium
         ),
-        label = "dockItemScale"
+        label = "glassIconScale"
     )
 
-    // Animated colors for text and icon
-    val contentColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.70f),
-        label = "dockItemColor"
+    // Animated glow container alpha
+    val glowAlpha by animateFloatAsState(
+        targetValue = if (isSelected) 1.0f else 0.0f,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "glassGlowAlpha"
     )
 
-    // Animated background pill highlight
-    val pillBgColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-        else Color.Transparent,
-        label = "dockItemPillBg"
+    // Icon tint transition
+    val iconColor by animateColorAsState(
+        targetValue = when {
+            isSelected -> Color.White
+            isDark -> Color(0xFF94A3B8).copy(alpha = 0.70f)
+            else -> Color(0xFF475569).copy(alpha = 0.75f)
+        },
+        label = "glassIconColor"
+    )
+
+    // Active Glowing Pill Brush
+    val activePillBrush = Brush.linearGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primary,
+            MaterialTheme.colorScheme.secondary
+        )
     )
 
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(22.dp))
-            .background(pillBgColor)
+            .size(48.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(CircleShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = rememberRipple(bounded = true, radius = 28.dp),
+                indication = rememberRipple(bounded = false, radius = 24.dp),
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onClick()
                 }
-            )
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            ),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
-                contentDescription = item.title,
-                tint = contentColor,
+        // Glowing Glass Active Indicator Pill
+        if (glowAlpha > 0.01f) {
+            Box(
                 modifier = Modifier
-                    .size(24.dp)
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                    }
+                    .size(44.dp)
+                    .graphicsLayer { alpha = glowAlpha }
+                    .shadow(
+                        elevation = 10.dp,
+                        shape = CircleShape,
+                        spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.60f)
+                    )
+                    .clip(CircleShape)
+                    .background(brush = activePillBrush)
+                    .border(
+                        width = 1.dp,
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.50f),
+                                Color.Transparent
+                            )
+                        ),
+                        shape = CircleShape
+                    )
             )
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Text(
-                text = item.title,
-                fontSize = 10.5.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = contentColor,
-                maxLines = 1
-            )
-
-            // Micro-indicator dot underneath active item
-            if (isSelected) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Box(
-                    modifier = Modifier
-                        .size(4.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                )
-            } else {
-                Spacer(modifier = Modifier.height(6.dp))
-            }
         }
+
+        // Crisp Icon
+        Icon(
+            imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
+            contentDescription = item.description,
+            tint = iconColor,
+            modifier = Modifier.size(24.dp)
+        )
     }
 }
