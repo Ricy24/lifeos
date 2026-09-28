@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -34,15 +35,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.LocalGasStation
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -78,7 +75,6 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -91,8 +87,10 @@ import com.example.andresfinanzas.R
 import com.example.andresfinanzas.data.repository.ComponentHealth
 import com.example.andresfinanzas.data.repository.DocumentStatus
 import com.example.andresfinanzas.data.repository.MaintenanceStatus
+import com.example.andresfinanzas.ui.theme.CyanAccent
 import com.example.andresfinanzas.ui.theme.ElectricIndigo
 import com.example.andresfinanzas.ui.theme.EmeraldGreen
+import com.example.andresfinanzas.ui.theme.PrimaryBrand
 import com.example.andresfinanzas.ui.theme.RoseRed
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -119,33 +117,31 @@ fun MotorcycleScreen(
         maximumFractionDigits = 0
     }
 
-    // Floating 3D animation
+    // 3D floating animation
     val infiniteTransition = rememberInfiniteTransition(label = "moto3DFloat")
     val floatOffsetY by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = -12f,
+        targetValue = -10f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2400, easing = FastOutSlowInEasing),
+            animation = tween(2200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "floatY"
     )
 
-    // Soft atmospheric top background gradient
-    val headerGradient = if (isDark) {
+    // Subtle atmospheric glow consistent with LifeOS dark & light palettes
+    val atmosphericGlow = if (isDark) {
         Brush.verticalGradient(
             colors = listOf(
-                Color(0xFF2E1065).copy(alpha = 0.5f), // Soft indigo-purple atmospheric glow
-                Color(0xFF1E1B4B).copy(alpha = 0.25f),
-                MaterialTheme.colorScheme.background
+                PrimaryBrand.copy(alpha = 0.12f),
+                Color.Transparent
             )
         )
     } else {
         Brush.verticalGradient(
             colors = listOf(
-                Color(0xFFEDE9FE), // Pastel soft lavender
-                Color(0xFFF5F3FF),
-                MaterialTheme.colorScheme.background
+                PrimaryBrand.copy(alpha = 0.05f),
+                Color.Transparent
             )
         )
     }
@@ -162,8 +158,8 @@ fun MotorcycleScreen(
                         Column {
                             Text(
                                 text = "Mi Moto",
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.ExtraBold,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onBackground
                             )
                             Text(
@@ -173,24 +169,29 @@ fun MotorcycleScreen(
                             )
                         }
 
-                        // Right Status Badges (Fire / Health & Actions)
+                        // Right actions (Cloud sync & settings)
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
-                                color = EmeraldGreen.copy(alpha = 0.15f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.3f))
+                                color = EmeraldGreen.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.25f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Text("🔥", fontSize = 13.sp)
+                                    Icon(
+                                        Icons.Default.CloudDone,
+                                        contentDescription = null,
+                                        tint = EmeraldGreen,
+                                        modifier = Modifier.size(14.dp)
+                                    )
                                     Text(
-                                        text = "100%",
+                                        text = "Nube",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = EmeraldGreen
@@ -201,25 +202,25 @@ fun MotorcycleScreen(
                             IconButton(
                                 onClick = { viewModel.syncWithBackend() },
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(38.dp)
                                     .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                             ) {
                                 if (uiState.isSyncing) {
-                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = PrimaryBrand)
                                 } else {
-                                    Icon(Icons.Default.Sync, contentDescription = "Sincronizar", modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Sync, contentDescription = "Sincronizar", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
 
                             IconButton(
                                 onClick = { showEditInfoDialog = true },
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(38.dp)
                                     .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                             ) {
-                                Icon(Icons.Default.Settings, contentDescription = "Configuración", modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Settings, contentDescription = "Configuración", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -231,13 +232,13 @@ fun MotorcycleScreen(
                             .padding(start = 4.dp)
                             .size(38.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás", modifier = Modifier.size(20.dp))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
+                    containerColor = MaterialTheme.colorScheme.background
                 )
             )
         }
@@ -249,7 +250,7 @@ fun MotorcycleScreen(
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                CircularProgressIndicator(color = PrimaryBrand)
             }
         } else {
             // Find key components for quick pods
@@ -279,50 +280,51 @@ fun MotorcycleScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(brush = headerGradient)
+                    .background(MaterialTheme.colorScheme.background)
+                    .background(brush = atmosphericGlow)
                     .padding(innerPadding)
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // 1. HERO 3D MOTORCYCLE SECTION (with speech bubble & glowing halo)
+                // 1. HERO 3D MOTORCYCLE SECTION (with speech bubble & glowing halo arc)
                 item {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 4.dp, bottom = 8.dp),
+                            .padding(top = 4.dp, bottom = 4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Companion Speech Bubble with tail
-                        SpeechBubble(
+                        // Companion Speech Bubble in LifeOS styling
+                        LifeOSSpeechBubble(
                             text = companionSpeech,
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                            modifier = Modifier.padding(horizontal = 12.dp)
                         )
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // 3D Motorcycle floating over glowing arc
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(220.dp),
+                                .height(230.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            // Glowing Halo Arc behind bike
+                            // Glowing Halo Arc behind bike in LifeOS royal blue & cyan
                             Canvas(modifier = Modifier.size(280.dp, 160.dp)) {
                                 drawArc(
                                     brush = Brush.sweepGradient(
                                         colors = listOf(
-                                            ElectricIndigo.copy(alpha = 0.15f),
-                                            Color(0xFF06B6D4).copy(alpha = 0.85f), // Cyan glow
-                                            ElectricIndigo.copy(alpha = 0.95f),
-                                            Color(0xFF06B6D4).copy(alpha = 0.85f),
-                                            ElectricIndigo.copy(alpha = 0.15f)
+                                            PrimaryBrand.copy(alpha = 0.10f),
+                                            CyanAccent.copy(alpha = 0.85f),
+                                            PrimaryBrand,
+                                            ElectricIndigo.copy(alpha = 0.85f),
+                                            PrimaryBrand.copy(alpha = 0.10f)
                                         )
                                     ),
                                     startAngle = 180f,
                                     sweepAngle = 180f,
                                     useCenter = false,
-                                    style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
+                                    style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round)
                                 )
                             }
 
@@ -331,7 +333,7 @@ fun MotorcycleScreen(
                                 painter = painterResource(id = R.drawable.moto_3d_avatar),
                                 contentDescription = "Moto 3D Companion",
                                 modifier = Modifier
-                                    .size(230.dp)
+                                    .size(240.dp)
                                     .graphicsLayer {
                                         translationY = floatOffsetY
                                     }
@@ -340,10 +342,10 @@ fun MotorcycleScreen(
 
                         // Digital Odometer Quick Capsule Badge
                         Surface(
-                            shape = RoundedCornerShape(24.dp),
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                            shadowElevation = 8.dp,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            shadowElevation = 4.dp,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.20f)),
                             modifier = Modifier.clickable { showMileageDialog = true }
                         ) {
                             Row(
@@ -356,12 +358,12 @@ fun MotorcycleScreen(
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.Black,
                                     fontFamily = FontFamily.Monospace,
-                                    color = MaterialTheme.colorScheme.primary
+                                    color = PrimaryBrand
                                 )
 
                                 Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = PrimaryBrand.copy(alpha = 0.12f),
                                     modifier = Modifier.clickable { showMileageDialog = true }
                                 ) {
                                     Row(
@@ -369,25 +371,25 @@ fun MotorcycleScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
-                                        Text("Editar", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(12.dp), tint = PrimaryBrand)
+                                        Text("Editar", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryBrand)
                                     }
                                 }
 
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
                                         modifier = Modifier.clickable { viewModel.updateMileage(moto.currentMileage + 50) }
                                     ) {
-                                        Text("+50", fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
+                                        Text("+50", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
                                     }
                                     Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
                                         modifier = Modifier.clickable { viewModel.updateMileage(moto.currentMileage + 100) }
                                     ) {
-                                        Text("+100", fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
+                                        Text("+100", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
                                     }
                                 }
                             }
@@ -451,15 +453,16 @@ fun MotorcycleScreen(
                     }
                 }
 
-                // 3. COACH CARD / INSIGHT CARD (Matching COACH AVO card in reference)
+                // 3. COACH CARD / INSIGHT CARD (Matching LifeOS Design System)
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(24.dp),
+                        shape = RoundedCornerShape(22.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surface
                         ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -474,42 +477,42 @@ fun MotorcycleScreen(
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Box(
                                         modifier = Modifier
                                             .size(8.dp)
                                             .clip(CircleShape)
-                                            .background(ElectricIndigo)
+                                            .background(PrimaryBrand)
                                     )
                                     Text(
-                                        text = "COACH LIFEOS MOTO",
-                                        style = MaterialTheme.typography.labelSmall,
+                                        text = "COACH INTELIGENTE MOTO",
+                                        style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = ElectricIndigo,
+                                        color = PrimaryBrand,
                                         letterSpacing = 1.sp
                                     )
                                 }
 
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                    color = PrimaryBrand.copy(alpha = 0.12f)
                                 ) {
                                     Text(
-                                        text = "Ahorro Activo",
+                                        text = "Gasto Optimizado",
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = PrimaryBrand
                                     )
                                 }
                             }
 
                             Text(
-                                text = "Tu gasto estimado por km rodado es de ${formatCop.format(moto.costPerKm)}/km. Recomendamos reservar ${formatCop.format(uiState.monthlyReserveEstimated)} al mes para cubrir cambios de aceite, llantas y SOAT sin sorpresas.",
+                                text = "Tu costo de rodaje es de ${formatCop.format(moto.costPerKm)}/km. Se sugiere provisionar ${formatCop.format(uiState.monthlyReserveEstimated)} al mes para cubrir cambios de aceite, kit de arrastre y documentos sin desajustar tus finanzas.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
-                                lineHeight = 20.sp
+                                lineHeight = 21.sp
                             )
 
                             Row(
@@ -519,29 +522,29 @@ fun MotorcycleScreen(
                                 Button(
                                     onClick = { showCostPerKmDialog = true },
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(14.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = ElectricIndigo)
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBrand)
                                 ) {
                                     Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Fondo COP/km", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                                    Text("Fondo COP/km", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 }
 
                                 OutlinedButton(
                                     onClick = { showMileageDialog = true },
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(14.dp)
+                                    shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp), tint = PrimaryBrand)
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Odómetro", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                                    Text("Odómetro", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                                 }
                             }
                         }
                     }
                 }
 
-                // 4. "TODAY'S PLAN" - ESTADO DETALLADO DE COMPONENTES
+                // 4. "PLAN DE MANTENIMIENTO" - COMPONENTES
                 item {
                     Text(
                         text = "Plan de Mantenimiento",
@@ -585,7 +588,7 @@ fun MotorcycleScreen(
                         Text(
                             text = "Toca para editar fechas",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
+                            color = PrimaryBrand
                         )
                     }
                 }
@@ -615,7 +618,7 @@ fun MotorcycleScreen(
                 }
 
                 item {
-                    Spacer(modifier = Modifier.height(40.dp))
+                    Spacer(modifier = Modifier.height(30.dp))
                 }
             }
         }
@@ -648,7 +651,8 @@ fun MotorcycleScreen(
                             viewModel.updateMileage(parsed)
                         }
                         showMileageDialog = false
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBrand)
                 ) {
                     Text("Guardar")
                 }
@@ -703,7 +707,8 @@ fun MotorcycleScreen(
                             "Llanta Delantera" -> viewModel.editTireSettings(false, lastKm, interval)
                         }
                         componentToEdit = null
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBrand)
                 ) {
                     Text("Guardar")
                 }
@@ -743,7 +748,8 @@ fun MotorcycleScreen(
                         val days = inputDays.toIntOrNull() ?: 365
                         viewModel.editDocumentDays(docName == "SOAT", days)
                         documentToEdit = null
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBrand)
                 ) {
                     Text("Guardar")
                 }
@@ -782,7 +788,8 @@ fun MotorcycleScreen(
                         val cost = inputCost.toDoubleOrNull() ?: 45.0
                         viewModel.editCostPerKm(cost)
                         showCostPerKmDialog = false
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBrand)
                 ) {
                     Text("Guardar")
                 }
@@ -836,7 +843,8 @@ fun MotorcycleScreen(
                         val interval = inputOilInterval.toIntOrNull() ?: 2500
                         viewModel.updateMotoInfo(inputName.trim(), inputModel.trim(), interval, moto.costPerKm)
                         showEditInfoDialog = false
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBrand)
                 ) {
                     Text("Guardar")
                 }
@@ -851,52 +859,52 @@ fun MotorcycleScreen(
 }
 
 /**
- * Thought/Speech bubble with tail pointing downward to the 3D companion.
+ * Speech bubble styled seamlessly with LifeOS design tokens.
  */
 @Composable
-private fun SpeechBubble(
+private fun LifeOSSpeechBubble(
     text: String,
     modifier: Modifier = Modifier
 ) {
-    val isDark = isSystemInDarkTheme()
-    val bubbleColor = if (isDark) Color(0xFF1E2235) else Color.White
+    val bubbleBg = MaterialTheme.colorScheme.surface
+    val borderCol = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f)
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
     ) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = bubbleColor,
-            shadowElevation = 8.dp,
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            shape = RoundedCornerShape(18.dp),
+            color = bubbleBg,
+            shadowElevation = 4.dp,
+            border = BorderStroke(1.dp, borderCol)
         ) {
             Text(
                 text = text,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                 textAlign = TextAlign.Center,
-                lineHeight = 18.sp
+                lineHeight = 19.sp
             )
         }
 
-        // Tail triangle pointing down
-        Canvas(modifier = Modifier.size(14.dp, 8.dp)) {
+        // Tail triangle pointing down to the bike
+        Canvas(modifier = Modifier.size(12.dp, 6.dp)) {
             val path = Path().apply {
                 moveTo(0f, 0f)
                 lineTo(size.width, 0f)
                 lineTo(size.width / 2f, size.height)
                 close()
             }
-            drawPath(path, color = bubbleColor)
+            drawPath(path, color = bubbleBg)
         }
     }
 }
 
 /**
- * Circular Quick Action Pod (Matching the 4 round pods from the reference UI).
+ * Circular Quick Action Pod styled with LifeOS surface & brand colors.
  */
 @Composable
 private fun QuickMetricPod(
@@ -915,13 +923,13 @@ private fun QuickMetricPod(
             // Main Circular Pod
             Box(
                 modifier = Modifier
-                    .size(58.dp)
-                    .shadow(elevation = 6.dp, shape = CircleShape)
+                    .size(60.dp)
+                    .shadow(elevation = 4.dp, shape = CircleShape)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surface)
                     .border(
-                        width = 1.dp,
-                        color = if (isWarning) RoseRed.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                        width = 1.2.dp,
+                        color = if (isWarning) RoseRed.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
                         shape = CircleShape
                     ),
                 contentAlignment = Alignment.Center
@@ -929,12 +937,12 @@ private fun QuickMetricPod(
                 Text(text = iconEmoji, fontSize = 24.sp)
             }
 
-            // Small '+' action badge
+            // Small '+' action badge in LifeOS PrimaryBrand
             Box(
                 modifier = Modifier
                     .size(20.dp)
                     .clip(CircleShape)
-                    .background(if (isWarning) RoseRed else ElectricIndigo),
+                    .background(if (isWarning) RoseRed else PrimaryBrand),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -948,7 +956,7 @@ private fun QuickMetricPod(
 
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -980,7 +988,8 @@ fun DocumentCard(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -1044,8 +1053,9 @@ fun ComponentHealthCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { expanded = !expanded },
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
