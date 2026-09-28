@@ -18,8 +18,8 @@ data class AuthUiState(
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val sharedPreferences: SharedPreferences
-    // private val authRepository: AuthRepository // Will be added in full implementation
+    private val sharedPreferences: SharedPreferences,
+    private val authApi: com.example.andresfinanzas.data.remote.api.AuthApi
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AuthUiState())
@@ -31,8 +31,12 @@ class AuthViewModel @Inject constructor(
 
     private fun checkAuthStatus() {
         val token = sharedPreferences.getString("auth_token", null)
-        if (!token.isNullOrEmpty()) {
+        if (!token.isNullOrEmpty() && token != "mock_token_123") {
             _uiState.value = _uiState.value.copy(isAuthenticated = true)
+        } else {
+            // Clear invalid mock token
+            sharedPreferences.edit().remove("auth_token").apply()
+            _uiState.value = _uiState.value.copy(isAuthenticated = false)
         }
     }
 
@@ -40,23 +44,21 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
-                // Mocking login for now until AuthRepository is fully wired
-                if (email.isNotBlank() && pin.length >= 4) {
-                    sharedPreferences.edit().putString("auth_token", "mock_token_123").apply()
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        isAuthenticated = true
+                val response = authApi.login(
+                    com.example.andresfinanzas.data.remote.api.LoginRequest(
+                        email = email.trim(),
+                        password = pin.trim()
                     )
-                } else {
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = "Invalid credentials"
-                    )
-                }
+                )
+                sharedPreferences.edit().putString("auth_token", response.access_token).apply()
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    isAuthenticated = true
+                )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    error = e.localizedMessage ?: "Unknown error"
+                    error = "Error al iniciar sesión: ${e.localizedMessage ?: "Credenciales inválidas"}"
                 )
             }
         }

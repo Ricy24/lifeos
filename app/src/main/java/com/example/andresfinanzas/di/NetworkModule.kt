@@ -61,6 +61,12 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideAuthApi(retrofit: Retrofit): com.example.andresfinanzas.data.remote.api.AuthApi {
+        return retrofit.create(com.example.andresfinanzas.data.remote.api.AuthApi::class.java)
+    }
+
+    @Provides
+    @Singleton
     fun provideAccountApi(retrofit: Retrofit): AccountApi {
         return retrofit.create(AccountApi::class.java)
     }

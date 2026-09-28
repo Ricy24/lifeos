@@ -8,7 +8,7 @@ from app.schemas.common import ContractBaseModel
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 
