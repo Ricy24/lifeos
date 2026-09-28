@@ -24,6 +24,7 @@ import com.example.andresfinanzas.ui.auth.AuthViewModel
 import com.example.andresfinanzas.ui.auth.LoginScreen
 import com.example.andresfinanzas.ui.components.AddAccountDialog
 import com.example.andresfinanzas.ui.components.AddTransactionBottomSheet
+import com.example.andresfinanzas.ui.components.FloatingDockNavigationBar
 import com.example.andresfinanzas.ui.dashboard.DashboardScreen
 import com.example.andresfinanzas.ui.dashboard.DashboardViewModel
 import com.example.andresfinanzas.ui.debts.DebtScreen
@@ -117,70 +118,10 @@ fun AppNavigation(
 
     Scaffold(
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface
-            ) {
-                NavigationBarItem(
-                    selected = currentScreen == "dashboard",
-                    onClick = { currentScreen = "dashboard" },
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Inicio") },
-                    label = { Text("Inicio", fontWeight = FontWeight.SemiBold) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                )
-
-                NavigationBarItem(
-                    selected = currentScreen == "accounts",
-                    onClick = { currentScreen = "accounts" },
-                    icon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Cuentas") },
-                    label = { Text("Cuentas", fontWeight = FontWeight.SemiBold) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                )
-
-                NavigationBarItem(
-                    selected = currentScreen == "metrics",
-                    onClick = { currentScreen = "metrics" },
-                    icon = { Icon(Icons.Default.TrendingUp, contentDescription = "Métricas") },
-                    label = { Text("Métricas", fontWeight = FontWeight.SemiBold) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                )
-
-                NavigationBarItem(
-                    selected = currentScreen == "goals_debts",
-                    onClick = { currentScreen = "goals_debts" },
-                    icon = { Icon(Icons.Default.Flag, contentDescription = "Metas & Deudas") },
-                    label = { Text("Metas", fontWeight = FontWeight.SemiBold) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                )
-
-                NavigationBarItem(
-                    selected = currentScreen == "motorcycle",
-                    onClick = { currentScreen = "motorcycle" },
-                    icon = { Icon(Icons.Default.TwoWheeler, contentDescription = "Mi Moto") },
-                    label = { Text("Mi Moto", fontWeight = FontWeight.SemiBold) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                )
-            }
+            FloatingDockNavigationBar(
+                currentScreen = currentScreen,
+                onNavigate = { currentScreen = it }
+            )
         },
         floatingActionButton = {
             FloatingActionButton(
