@@ -156,12 +156,48 @@ async def _search_google_places_single(
         res = await client.get(url, params=params, timeout=10.0)
         if res.status_code == 200:
             data = res.json()
+            status = data.get("status", "")
+            if status not in ("OK", "ZERO_RESULTS"):
+                logger.warning(
+                    f"[OUTINGS] Google Places Nearby status='{status}': {data.get('error_message', 'No error detail')}"
+                )
             results = data.get("results", [])
             npt = data.get("next_page_token")
             return results, npt
+        else:
+            logger.warning(f"[OUTINGS] Google Places HTTP error {res.status_code}: {res.text}")
     except Exception as e:
         logger.error(f"Error in Google Places Nearby Search ({place_type}/{keyword}): {e}")
     return [], None
+
+
+async def _search_google_places_text(
+    client: httpx.AsyncClient,
+    query: str,
+    api_key: str
+) -> list:
+    """Text Search request for Google Places when coordinates are not available."""
+    url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
+    params = {
+        "query": query,
+        "key": api_key,
+        "language": "es"
+    }
+    try:
+        res = await client.get(url, params=params, timeout=10.0)
+        if res.status_code == 200:
+            data = res.json()
+            status = data.get("status", "")
+            if status not in ("OK", "ZERO_RESULTS"):
+                logger.warning(
+                    f"[OUTINGS] Google Places TextSearch status='{status}': {data.get('error_message', 'No error detail')}"
+                )
+            return data.get("results", [])
+        else:
+            logger.warning(f"[OUTINGS] Google Places TextSearch HTTP {res.status_code}: {res.text}")
+    except Exception as e:
+        logger.error(f"Error in Google Places TextSearch: {e}")
+    return []
 
 
 async def _search_google_places_nearby(
@@ -322,23 +358,33 @@ async def _generate_with_ai_or_places(
     radius_km: int = 5,
     maps_api_key: str = ""
 ) -> OutingPlanResponse:
-    logger.info(
-        f"[OUTINGS] Generating plan: type={outing_type}, budget={target_budget}, area={area}, "
-        f"use_location={use_location}, lat={latitude}, lon={longitude}, radius={radius_km}km, "
-        f"maps_key_present={'YES (' + str(len(maps_api_key)) + ' chars)' if maps_api_key else 'NO (EMPTY)'}"
+    logger.warning(
+        f"[OUTINGS] Plan request received: type='{outing_type}', use_location={use_location}, "
+        f"lat={latitude}, lon={longitude}, radius={radius_km}km, area='{area}', "
+        f"maps_key={'PRESENT (' + str(len(maps_api_key)) + ' chars)' if maps_api_key else 'MISSING'}, "
+        f"gemini_key={'PRESENT' if settings.GEMINI_API_KEY else 'MISSING'}"
     )
     async with httpx.AsyncClient(timeout=25.0) as client:
-        # PATH A: GPS + Google Maps API → real venues via parallel multi-type Nearby Search
-        if use_location and latitude is not None and longitude is not None and maps_api_key:
-            logger.info(f"[OUTINGS] → PATH A: Google Places Nearby Search (GPS + API Key)")
-            nearby_results = await _search_google_places_nearby(
-                client=client,
-                lat=latitude,
-                lon=longitude,
-                radius_km=radius_km,
-                outing_type=outing_type,
-                api_key=maps_api_key
-            )
+        # PATH A: Google Places API (Nearby Search with GPS OR Text Search with Area)
+        if maps_api_key:
+            if use_location and latitude is not None and longitude is not None:
+                logger.warning(f"[OUTINGS] → PATH A1: Google Places Nearby Search (GPS: {latitude},{longitude}, radius={radius_km}km)")
+                nearby_results = await _search_google_places_nearby(
+                    client=client,
+                    lat=latitude,
+                    lon=longitude,
+                    radius_km=radius_km,
+                    outing_type=outing_type,
+                    api_key=maps_api_key
+                )
+            else:
+                search_query = f"{outing_type} en {area}" if area else outing_type
+                logger.warning(f"[OUTINGS] → PATH A2: Google Places Text Search (query='{search_query}')")
+                nearby_results = await _search_google_places_text(
+                    client=client,
+                    query=search_query,
+                    api_key=maps_api_key
+                )
 
             # Filter out visited places
             visited_lower = [v.strip().lower() for v in visited_places.split(",") if v.strip()]
@@ -347,17 +393,19 @@ async def _generate_with_ai_or_places(
                 if not any(v in p.get("name", "").lower() for v in visited_lower)
             ]
 
-            # Calculate distance and enforce strict radius filtering
+            # Calculate distance and enforce radius filtering if GPS is active
             places_with_dist = []
             for p in filtered:
                 p_lat = p.get("geometry", {}).get("location", {}).get("lat")
                 p_lng = p.get("geometry", {}).get("location", {}).get("lng")
-                if p_lat is not None and p_lng is not None:
+                if latitude is not None and longitude is not None and p_lat is not None and p_lng is not None:
                     d = _haversine_distance_km(latitude, longitude, p_lat, p_lng)
-                    # STRICT: only include places truly within the user's radius
                     if d <= radius_km * 1.05:
                         p["_dist"] = d
                         places_with_dist.append(p)
+                else:
+                    p["_dist"] = None
+                    places_with_dist.append(p)
 
             # Filter out places with very low ratings or no ratings
             quality_places = [
@@ -403,8 +451,8 @@ async def _generate_with_ai_or_places(
                     all_remaining = [p for p in quality_places if p not in selected]
                     selected.extend(all_remaining[:max_venues - len(selected)])
 
-                # Sort final selection by distance for a natural itinerary
-                selected.sort(key=lambda p: p.get("_dist", 999))
+                # Sort final selection by distance if available
+                selected.sort(key=lambda p: (p.get("_dist") is None, p.get("_dist") or 0))
 
                 stops = []
                 total_cost = 0.0
@@ -414,7 +462,9 @@ async def _generate_with_ai_or_places(
                     p_name = p.get("name", "Lugar")
                     p_lat = p.get("geometry", {}).get("location", {}).get("lat", latitude)
                     p_lng = p.get("geometry", {}).get("location", {}).get("lng", longitude)
-                    dist = p.get("_dist") or _haversine_distance_km(latitude, longitude, p_lat, p_lng)
+                    dist = p.get("_dist")
+                    if dist is None and latitude is not None and longitude is not None and p_lat is not None and p_lng is not None:
+                        dist = _haversine_distance_km(latitude, longitude, p_lat, p_lng)
 
                     # Distribute budget proportionally
                     cost = round(target_budget / num_stops)
@@ -429,7 +479,7 @@ async def _generate_with_ai_or_places(
                     if not photo_url:
                         photo_url = _get_category_photo(outing_type, p_name)
 
-                    vicinity = p.get("vicinity", area)
+                    vicinity = p.get("vicinity") or p.get("formatted_address") or area
                     rating = float(p.get("rating", 0))
                     reviews_cnt = int(p.get("user_ratings_total", 0))
                     price_level = p.get("price_level")
@@ -442,7 +492,12 @@ async def _generate_with_ai_or_places(
                         desc_parts.append(f"Calificación {rating}⭐ ({reviews_cnt} reseñas).")
                     if price_label:
                         desc_parts.append(f"Nivel de precios: {price_label}.")
-                    desc_parts.append(f"A {dist:.1f} km de ti.")
+                    if dist is not None:
+                        desc_parts.append(f"A {dist:.1f} km de ti.")
+
+                    highlight_note = f"A {dist:.1f} km de tu ubicación." if dist is not None else f"Ubicado en {vicinity}."
+                    if price_label:
+                        highlight_note += f" Precio: {price_label}"
 
                     stops.append(OutingStop(
                         order=idx + 1,
@@ -455,17 +510,18 @@ async def _generate_with_ai_or_places(
                         image_url=photo_url,
                         rating=rating,
                         review_count=reviews_cnt,
-                        highlight_review=f"A solo {dist:.1f} km de tu ubicación actual." + (f" Precio: {price_label}" if price_label else ""),
-                        distance_km=round(dist, 1),
+                        highlight_review=highlight_note,
+                        distance_km=round(dist, 1) if dist is not None else None,
                         latitude=p_lat,
                         longitude=p_lng,
                         address=vicinity,
                         price_level=price_level
                     ))
 
+                location_label = f"a ≤{radius_km} km" if (use_location and latitude is not None) else f"en {area or 'tu zona'}"
                 return OutingPlanResponse(
-                    title=f"📍 {outing_type} — {len(stops)} lugares a ≤{radius_km} km",
-                    summary=f"Encontramos {len(stops)} sitios reales en Google Maps cerca de ti. Toca un marcador en el mapa para ver detalles.",
+                    title=f"📍 {outing_type} — {len(stops)} lugares {location_label}",
+                    summary=f"Encontramos {len(stops)} sitios reales en Google Maps. Toca un marcador en el mapa para ver detalles.",
                     total_estimated_cost=total_cost,
                     safe_budget_available=safe_budget,
                     stops=stops,
