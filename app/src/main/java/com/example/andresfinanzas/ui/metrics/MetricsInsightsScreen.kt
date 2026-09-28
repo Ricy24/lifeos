@@ -1,7 +1,5 @@
 package com.example.andresfinanzas.ui.metrics
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -11,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
@@ -29,7 +26,6 @@ import com.example.andresfinanzas.data.local.entities.TransactionEntity
 import com.example.andresfinanzas.ui.theme.ElectricIndigo
 import com.example.andresfinanzas.ui.theme.EmeraldGreen
 import com.example.andresfinanzas.ui.theme.RoseRed
-import com.example.andresfinanzas.ui.theme.TelegramBlue
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -40,8 +36,6 @@ fun MetricsInsightsScreen(
     netWorth: Double
 ) {
     val context = LocalContext.current
-    var telegramSentMessage by remember { mutableStateOf<String?>(null) }
-    var isSendingTelegram by remember { mutableStateOf(false) }
 
     val format = NumberFormat.getCurrencyInstance(Locale("es", "CO")).apply {
         maximumFractionDigits = 0
@@ -416,99 +410,6 @@ fun MetricsInsightsScreen(
                                 .clip(RoundedCornerShape(3.dp)),
                             color = ElectricIndigo,
                             trackColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-
-        // Telegram Bot Status & Test Section
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        width = 1.dp,
-                        color = TelegramBlue.copy(alpha = 0.5f),
-                        shape = RoundedCornerShape(22.dp)
-                    ),
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = TelegramBlue.copy(alpha = 0.1f)
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = TelegramBlue,
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("✈️", fontSize = 18.sp)
-                            }
-                        }
-                        Column {
-                            Text(
-                                text = "Bot de Telegram LifeOS",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Vinculado a tu chat personal",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = EmeraldGreen,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = "El bot de Telegram está programado para enviarte resúmenes diarios a las 10:00 PM y un balance semanal todos los domingos con tus saldos, metas y deudas.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Button(
-                        onClick = {
-                            // Open Telegram chat directly with the bot
-                            val telegramIntent = Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse("https://t.me/Andresfinanzas_bot")
-                            )
-                            try {
-                                context.startActivity(telegramIntent)
-                            } catch (e: Exception) {
-                                // Fallback to browser
-                                val webIntent = Intent(
-                                    Intent.ACTION_VIEW,
-                                    Uri.parse("https://web.telegram.org")
-                                )
-                                context.startActivity(webIntent)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = TelegramBlue)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Send,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Abrir Bot en Telegram (@LifeOS_bot)",
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
                         )
                     }
                 }

@@ -94,4 +94,10 @@ object NetworkModule {
     fun provideWishlistApi(retrofit: Retrofit): WishlistApi {
         return retrofit.create(WishlistApi::class.java)
     }
+
+    @Provides
+    @Singleton
+    fun provideMotorcycleApi(retrofit: Retrofit): com.example.andresfinanzas.data.remote.api.MotorcycleApi {
+        return retrofit.create(com.example.andresfinanzas.data.remote.api.MotorcycleApi::class.java)
+    }
 }

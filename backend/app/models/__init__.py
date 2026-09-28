@@ -17,6 +17,7 @@ from app.models.transaction import (
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.models.work_session import WorkSession
+from app.models.motorcycle import Motorcycle
 
 __all__ = [
     "Account",
@@ -39,4 +40,5 @@ __all__ = [
     "TransactionType",
     "User",
     "WorkSession",
+    "Motorcycle",
 ]

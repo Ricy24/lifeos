@@ -2,6 +2,8 @@ package com.example.andresfinanzas.data.repository
 
 import com.example.andresfinanzas.data.local.dao.MotorcycleDao
 import com.example.andresfinanzas.data.local.entities.MotorcycleEntity
+import com.example.andresfinanzas.data.remote.api.MotorcycleApi
+import com.example.andresfinanzas.data.remote.api.MotorcycleUpdateRemote
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import javax.inject.Inject
@@ -14,7 +16,9 @@ data class ComponentHealth(
     val maxLifeKm: Int,
     val remainingKm: Int,
     val progress: Float, // 0.0 to 1.0 (1.0 = expired / need service)
-    val status: MaintenanceStatus
+    val status: MaintenanceStatus,
+    val lastServiceMileage: Int,
+    val intervalKm: Int
 )
 
 enum class MaintenanceStatus {
@@ -33,11 +37,41 @@ data class DocumentStatus(
 
 @Singleton
 class MotorcycleRepository @Inject constructor(
-    private val motorcycleDao: MotorcycleDao
+    private val motorcycleDao: MotorcycleDao,
+    private val motorcycleApi: MotorcycleApi
 ) {
     val motorcycle: Flow<MotorcycleEntity?> = motorcycleDao.getMotorcycle()
 
     suspend fun getOrCreateDefault(): MotorcycleEntity {
+        // 1. Try to fetch from backend first
+        try {
+            val remote = motorcycleApi.getMotorcycle()
+            val entity = MotorcycleEntity(
+                id = remote.id,
+                name = remote.name,
+                model = remote.model,
+                currentMileage = remote.current_mileage,
+                oilChangeInterval = remote.oil_change_interval,
+                lastOilChangeMileage = remote.last_oil_change_mileage,
+                frontTireMileage = remote.front_tire_mileage,
+                frontTireLifeKm = remote.front_tire_life_km,
+                rearTireMileage = remote.rear_tire_mileage,
+                rearTireLifeKm = remote.rear_tire_life_km,
+                brakePadsMileage = remote.brake_pads_mileage,
+                brakePadsLifeKm = remote.brake_pads_life_km,
+                chainMaintenanceMileage = remote.chain_maintenance_mileage,
+                chainMaintenanceInterval = remote.chain_maintenance_interval,
+                soatExpiryDate = remote.soat_expiry_date,
+                technoExpiryDate = remote.techno_expiry_date,
+                costPerKm = remote.cost_per_km,
+                lastUpdated = remote.last_updated
+            )
+            motorcycleDao.insertMotorcycle(entity)
+            return entity
+        } catch (e: Exception) {
+            // Offline fallback
+        }
+
         val existing = motorcycleDao.getMotorcycle().firstOrNull()
         if (existing != null) return existing
 
@@ -58,55 +92,150 @@ class MotorcycleRepository @Inject constructor(
             costPerKm = 45.0
         )
         motorcycleDao.insertMotorcycle(defaultMoto)
+        pushToRemote(defaultMoto)
         return defaultMoto
+    }
+
+    suspend fun syncWithBackend() {
+        try {
+            val remote = motorcycleApi.getMotorcycle()
+            val local = motorcycleDao.getMotorcycle().firstOrNull()
+            if (local == null || remote.last_updated > local.lastUpdated) {
+                motorcycleDao.insertMotorcycle(
+                    MotorcycleEntity(
+                        id = remote.id,
+                        name = remote.name,
+                        model = remote.model,
+                        currentMileage = remote.current_mileage,
+                        oilChangeInterval = remote.oil_change_interval,
+                        lastOilChangeMileage = remote.last_oil_change_mileage,
+                        frontTireMileage = remote.front_tire_mileage,
+                        frontTireLifeKm = remote.front_tire_life_km,
+                        rearTireMileage = remote.rear_tire_mileage,
+                        rearTireLifeKm = remote.rear_tire_life_km,
+                        brakePadsMileage = remote.brake_pads_mileage,
+                        brakePadsLifeKm = remote.brake_pads_life_km,
+                        chainMaintenanceMileage = remote.chain_maintenance_mileage,
+                        chainMaintenanceInterval = remote.chain_maintenance_interval,
+                        soatExpiryDate = remote.soat_expiry_date,
+                        technoExpiryDate = remote.techno_expiry_date,
+                        costPerKm = remote.cost_per_km,
+                        lastUpdated = remote.last_updated
+                    )
+                )
+            } else if (local.lastUpdated > remote.last_updated) {
+                pushToRemote(local)
+            }
+        } catch (e: Exception) {
+            // Keep local offline
+        }
+    }
+
+    private suspend fun pushToRemote(moto: MotorcycleEntity) {
+        try {
+            motorcycleApi.updateMotorcycle(
+                MotorcycleUpdateRemote(
+                    name = moto.name,
+                    model = moto.model,
+                    current_mileage = moto.currentMileage,
+                    oil_change_interval = moto.oilChangeInterval,
+                    last_oil_change_mileage = moto.lastOilChangeMileage,
+                    front_tire_mileage = moto.frontTireMileage,
+                    front_tire_life_km = moto.frontTireLifeKm,
+                    rear_tire_mileage = moto.rearTireMileage,
+                    rear_tire_life_km = moto.rearTireLifeKm,
+                    brake_pads_mileage = moto.brakePadsMileage,
+                    brake_pads_life_km = moto.brakePadsLifeKm,
+                    chain_maintenance_mileage = moto.chainMaintenanceMileage,
+                    chain_maintenance_interval = moto.chainMaintenanceInterval,
+                    soat_expiry_date = moto.soatExpiryDate,
+                    techno_expiry_date = moto.technoExpiryDate,
+                    cost_per_km = moto.costPerKm
+                )
+            )
+        } catch (e: Exception) {
+            // Will retry on next sync
+        }
     }
 
     suspend fun updateMileage(motoId: String, newMileage: Int) {
         motorcycleDao.updateMileage(motoId, newMileage)
+        val updated = motorcycleDao.getMotorcycle().firstOrNull() ?: return
+        pushToRemote(updated)
+    }
+
+    suspend fun updateEntireMotorcycle(moto: MotorcycleEntity) {
+        val withTimestamp = moto.copy(lastUpdated = System.currentTimeMillis())
+        motorcycleDao.updateMotorcycle(withTimestamp)
+        pushToRemote(withTimestamp)
     }
 
     suspend fun recordOilChange(motoId: String, currentMileage: Int) {
         motorcycleDao.recordOilChange(motoId, currentMileage)
+        val updated = motorcycleDao.getMotorcycle().firstOrNull() ?: return
+        pushToRemote(updated)
     }
 
-    suspend fun recordFrontTireChange(motoId: String, currentMileage: Int) {
+    suspend fun editOilSettings(lastOilMileage: Int, intervalKm: Int) {
         val moto = motorcycleDao.getMotorcycle().firstOrNull() ?: return
-        motorcycleDao.updateMotorcycle(moto.copy(frontTireMileage = currentMileage, lastUpdated = System.currentTimeMillis()))
-    }
-
-    suspend fun recordRearTireChange(motoId: String, currentMileage: Int) {
-        val moto = motorcycleDao.getMotorcycle().firstOrNull() ?: return
-        motorcycleDao.updateMotorcycle(moto.copy(rearTireMileage = currentMileage, lastUpdated = System.currentTimeMillis()))
-    }
-
-    suspend fun recordBrakePadsChange(motoId: String, currentMileage: Int) {
-        val moto = motorcycleDao.getMotorcycle().firstOrNull() ?: return
-        motorcycleDao.updateMotorcycle(moto.copy(brakePadsMileage = currentMileage, lastUpdated = System.currentTimeMillis()))
-    }
-
-    suspend fun recordChainMaintenance(motoId: String, currentMileage: Int) {
-        val moto = motorcycleDao.getMotorcycle().firstOrNull() ?: return
-        motorcycleDao.updateMotorcycle(moto.copy(chainMaintenanceMileage = currentMileage, lastUpdated = System.currentTimeMillis()))
-    }
-
-    suspend fun updateMotoDetails(
-        name: String,
-        model: String,
-        oilInterval: Int,
-        soatExpiry: Long,
-        technoExpiry: Long
-    ) {
-        val moto = motorcycleDao.getMotorcycle().firstOrNull() ?: return
-        motorcycleDao.updateMotorcycle(
-            moto.copy(
-                name = name,
-                model = model,
-                oilChangeInterval = oilInterval,
-                soatExpiryDate = soatExpiry,
-                technoExpiryDate = technoExpiry,
-                lastUpdated = System.currentTimeMillis()
-            )
+        val updated = moto.copy(
+            lastOilChangeMileage = lastOilMileage,
+            oilChangeInterval = intervalKm,
+            lastUpdated = System.currentTimeMillis()
         )
+        motorcycleDao.updateMotorcycle(updated)
+        pushToRemote(updated)
+    }
+
+    suspend fun editTireSettings(isRear: Boolean, installedMileage: Int, lifeKm: Int) {
+        val moto = motorcycleDao.getMotorcycle().firstOrNull() ?: return
+        val updated = if (isRear) {
+            moto.copy(rearTireMileage = installedMileage, rearTireLifeKm = lifeKm, lastUpdated = System.currentTimeMillis())
+        } else {
+            moto.copy(frontTireMileage = installedMileage, frontTireLifeKm = lifeKm, lastUpdated = System.currentTimeMillis())
+        }
+        motorcycleDao.updateMotorcycle(updated)
+        pushToRemote(updated)
+    }
+
+    suspend fun editBrakeSettings(installedMileage: Int, lifeKm: Int) {
+        val moto = motorcycleDao.getMotorcycle().firstOrNull() ?: return
+        val updated = moto.copy(
+            brakePadsMileage = installedMileage,
+            brakePadsLifeKm = lifeKm,
+            lastUpdated = System.currentTimeMillis()
+        )
+        motorcycleDao.updateMotorcycle(updated)
+        pushToRemote(updated)
+    }
+
+    suspend fun editChainSettings(lubricatedMileage: Int, intervalKm: Int) {
+        val moto = motorcycleDao.getMotorcycle().firstOrNull() ?: return
+        val updated = moto.copy(
+            chainMaintenanceMileage = lubricatedMileage,
+            chainMaintenanceInterval = intervalKm,
+            lastUpdated = System.currentTimeMillis()
+        )
+        motorcycleDao.updateMotorcycle(updated)
+        pushToRemote(updated)
+    }
+
+    suspend fun editDocumentExpiry(isSoat: Boolean, expiryTimestamp: Long) {
+        val moto = motorcycleDao.getMotorcycle().firstOrNull() ?: return
+        val updated = if (isSoat) {
+            moto.copy(soatExpiryDate = expiryTimestamp, lastUpdated = System.currentTimeMillis())
+        } else {
+            moto.copy(technoExpiryDate = expiryTimestamp, lastUpdated = System.currentTimeMillis())
+        }
+        motorcycleDao.updateMotorcycle(updated)
+        pushToRemote(updated)
+    }
+
+    suspend fun editCostPerKm(cost: Double) {
+        val moto = motorcycleDao.getMotorcycle().firstOrNull() ?: return
+        val updated = moto.copy(costPerKm = cost, lastUpdated = System.currentTimeMillis())
+        motorcycleDao.updateMotorcycle(updated)
+        pushToRemote(updated)
     }
 
     fun computeComponentsHealth(moto: MotorcycleEntity): List<ComponentHealth> {
@@ -161,11 +290,11 @@ class MotorcycleRepository @Inject constructor(
         }
 
         return listOf(
-            ComponentHealth("Aceite de Motor", "🛢️", oilUsage, moto.oilChangeInterval, oilRemaining, oilProgress, oilStatus),
-            ComponentHealth("Cadena (Lubricación)", "⛓️", chainUsage, moto.chainMaintenanceInterval, chainRemaining, chainProgress, chainStatus),
-            ComponentHealth("Pastillas de Freno", "🛑", brakeUsage, moto.brakePadsLifeKm, brakeRemaining, brakeProgress, brakeStatus),
-            ComponentHealth("Llanta Trasera", "🛞", rearUsage, moto.rearTireLifeKm, rearRemaining, rearProgress, rearStatus),
-            ComponentHealth("Llanta Delantera", "🛞", frontUsage, moto.frontTireLifeKm, frontRemaining, frontProgress, frontStatus)
+            ComponentHealth("Aceite de Motor", "🛢️", oilUsage, moto.oilChangeInterval, oilRemaining, oilProgress, oilStatus, moto.lastOilChangeMileage, moto.oilChangeInterval),
+            ComponentHealth("Cadena (Lubricación)", "⛓️", chainUsage, moto.chainMaintenanceInterval, chainRemaining, chainProgress, chainStatus, moto.chainMaintenanceMileage, moto.chainMaintenanceInterval),
+            ComponentHealth("Pastillas de Freno", "🛑", brakeUsage, moto.brakePadsLifeKm, brakeRemaining, brakeProgress, brakeStatus, moto.brakePadsMileage, moto.brakePadsLifeKm),
+            ComponentHealth("Llanta Trasera", "🛞", rearUsage, moto.rearTireLifeKm, rearRemaining, rearProgress, rearStatus, moto.rearTireMileage, moto.rearTireLifeKm),
+            ComponentHealth("Llanta Delantera", "🛞", frontUsage, moto.frontTireLifeKm, frontRemaining, frontProgress, frontStatus, moto.frontTireMileage, moto.frontTireLifeKm)
         )
     }
 
