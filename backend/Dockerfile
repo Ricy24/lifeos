@@ -11,5 +11,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Run uvicorn server
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Make entrypoint executable
+RUN chmod +x /app/entrypoint.sh
+
+# Run entrypoint script (runs alembic migrations + uvicorn)
+ENTRYPOINT ["/app/entrypoint.sh"]

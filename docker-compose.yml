@@ -1,0 +1,87 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: lifeos_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      - lifeos_net
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lifeos_api
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-lifeos}:${POSTGRES_PASSWORD:-change_this_db_password}@postgres:5432/${POSTGRES_DB:-lifeos_db}
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET=${SECRET_KEY}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@lifeos.local}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-AdminPass123!}
+      - CRON_SECRET=${CRON_SECRET:-cron_super_secret_key}
+      - AI_PROVIDER=${AI_PROVIDER:-gemini}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_ALLOWED_USER_ID=${TELEGRAM_ALLOWED_USER_ID:-}
+      - TELEGRAM_WEBHOOK_URL=${TELEGRAM_WEBHOOK_URL:-}
+      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-}
+      - DEFAULT_CURRENCY=${DEFAULT_CURRENCY:-COP}
+      - TIMEZONE=${TIMEZONE:-America/Bogota}
+      - CORS_ORIGINS=["*"]
+      - HOST=0.0.0.0
+      - PORT=8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - lifeos_net
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: lifeos_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lifeos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_this_db_password}
+      POSTGRES_DB: ${POSTGRES_DB:-lifeos_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lifeos} -d ${POSTGRES_DB:-lifeos_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lifeos_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: lifeos_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - lifeos_net
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  lifeos_net:
+    driver: bridge

@@ -1,0 +1,23 @@
+# Caddy configuration for LifeOS on Oracle Cloud Always Free
+# If DOMAIN is configured in .env (e.g. DOMAIN=api.tudominio.com), it will automatically get free Let's Encrypt HTTPS.
+# If no DOMAIN is provided, it falls back to serving directly over port 80.
+
+:80 {
+    # Gzip & Zstandard compression
+    encode gzip zstd
+
+    # Security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    # Proxy to FastAPI
+    reverse_proxy api:8000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
