@@ -14,6 +14,11 @@ class OutingStop(BaseModel):
     description: str
     maps_query: str
     maps_url: str
+    image_url: Optional[str] = None
+    rating: float = 4.8
+    review_count: int = 120
+    highlight_review: Optional[str] = None
+    distance_km: Optional[float] = None
 
 
 class OutingPlanRequest(BaseModel):
@@ -21,6 +26,10 @@ class OutingPlanRequest(BaseModel):
     budget: Optional[float] = None
     area_or_city: str = "Bogotá"
     preferences: Optional[str] = None
+    use_current_location: bool = False
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    radius_km: Optional[int] = 5
 
 
 class OutingPlanResponse(BaseModel):

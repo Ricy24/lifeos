@@ -93,6 +93,10 @@ dependencies {
     // Google Maps SDK & Places
     implementation("com.google.android.gms:play-services-maps:18.2.0")
     implementation("com.google.android.libraries.places:places:3.4.0")
+    implementation("com.google.android.gms:play-services-location:21.2.0")
+
+    // Image loading with Coil
+    implementation("io.coil-kt:coil-compose:2.6.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

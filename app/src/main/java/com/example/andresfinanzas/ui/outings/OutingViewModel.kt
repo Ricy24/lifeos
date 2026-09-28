@@ -77,7 +77,11 @@ class OutingViewModel @Inject constructor(
         outingType: String,
         budget: Double?,
         areaOrCity: String,
-        preferences: String?
+        preferences: String?,
+        useCurrentLocation: Boolean = false,
+        latitude: Double? = null,
+        longitude: Double? = null,
+        radiusKm: Int? = 5
     ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isGeneratingPlan = true, errorMessage = null)
@@ -86,7 +90,11 @@ class OutingViewModel @Inject constructor(
                     outingType = outingType,
                     budget = budget,
                     areaOrCity = areaOrCity,
-                    preferences = preferences
+                    preferences = preferences,
+                    useCurrentLocation = useCurrentLocation,
+                    latitude = latitude,
+                    longitude = longitude,
+                    radiusKm = radiusKm
                 )
                 _uiState.value = _uiState.value.copy(
                     isGeneratingPlan = false,

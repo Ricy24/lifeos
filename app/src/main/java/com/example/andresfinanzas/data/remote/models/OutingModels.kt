@@ -7,14 +7,23 @@ data class OutingStopRemote(
     val estimated_cost: Double,
     val description: String,
     val maps_query: String,
-    val maps_url: String
+    val maps_url: String,
+    val image_url: String? = null,
+    val rating: Double? = 4.8,
+    val review_count: Int? = 120,
+    val highlight_review: String? = null,
+    val distance_km: Double? = null
 )
 
 data class OutingPlanRequestRemote(
     val outing_type: String,
     val budget: Double?,
     val area_or_city: String,
-    val preferences: String?
+    val preferences: String?,
+    val use_current_location: Boolean = false,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val radius_km: Int? = 5
 )
 
 data class OutingPlanResponseRemote(

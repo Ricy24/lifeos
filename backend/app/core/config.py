@@ -52,10 +52,11 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = "admin@lifeos.finance"
     ADMIN_PASSWORD: str = "changeme"
 
-    # AI
+    # AI & Google Maps
     AI_PROVIDER: str = "gemini"  # "gemini" or "openai"
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+    GOOGLE_MAPS_API_KEY: str = ""
 
     # Telegram
     TELEGRAM_BOT_TOKEN: str = ""

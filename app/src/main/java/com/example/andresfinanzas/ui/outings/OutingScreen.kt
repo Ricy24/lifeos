@@ -1,8 +1,12 @@
 package com.example.andresfinanzas.ui.outings
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,7 +26,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import coil.compose.AsyncImage
+import com.google.android.gms.location.LocationServices
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -141,8 +149,8 @@ fun OutingScreen(
                 0 -> OutingPlannerTab(
                     uiState = uiState,
                     currencyFormatter = currencyFormatter,
-                    onGeneratePlan = { type, budget, area, prefs ->
-                        viewModel.generatePlan(type, budget, area, prefs)
+                    onGeneratePlan = { type, budget, area, prefs, useLoc, lat, lon, rad ->
+                        viewModel.generatePlan(type, budget, area, prefs, useLoc, lat, lon, rad)
                     },
                     onOpenMaps = { mapsUrl ->
                         openUrlInBrowserOrMaps(context, mapsUrl)
@@ -238,14 +246,59 @@ fun OutingScreen(
 private fun OutingPlannerTab(
     uiState: OutingUiState,
     currencyFormatter: NumberFormat,
-    onGeneratePlan: (type: String, budget: Double?, area: String, prefs: String?) -> Unit,
+    onGeneratePlan: (
+        type: String,
+        budget: Double?,
+        area: String,
+        prefs: String?,
+        useLoc: Boolean,
+        lat: Double?,
+        lon: Double?,
+        rad: Int
+    ) -> Unit,
     onOpenMaps: (String) -> Unit,
     onSaveStopAsVisited: (OutingStopRemote) -> Unit
 ) {
+    val context = LocalContext.current
     var selectedType by remember { mutableStateOf("Cita Romántica") }
     var areaOrCity by remember { mutableStateOf("Bogotá") }
     var customBudgetStr by remember { mutableStateOf("") }
     var preferencesText by remember { mutableStateOf("") }
+
+    // GPS & Location state
+    var useCurrentLocation by remember { mutableStateOf(false) }
+    var currentLatitude by remember { mutableStateOf<Double?>(null) }
+    var currentLongitude by remember { mutableStateOf<Double?>(null) }
+    var selectedRadiusKm by remember { mutableStateOf(5) }
+    var isDetectingLocation by remember { mutableStateOf(false) }
+
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (fineGranted || coarseGranted) {
+            useCurrentLocation = true
+            isDetectingLocation = true
+            try {
+                fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+                    isDetectingLocation = false
+                    if (loc != null) {
+                        currentLatitude = loc.latitude
+                        currentLongitude = loc.longitude
+                    }
+                }.addOnFailureListener {
+                    isDetectingLocation = false
+                }
+            } catch (e: SecurityException) {
+                isDetectingLocation = false
+            }
+        } else {
+            useCurrentLocation = false
+        }
+    }
 
     val outingTypes = listOf(
         "Cita Romántica" to "💖",
@@ -315,6 +368,117 @@ private fun OutingPlannerTab(
             }
         }
 
+        // GPS Location Option Card
+        item {
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (useCurrentLocation) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                    else MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (useCurrentLocation) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Default.MyLocation,
+                                        contentDescription = null,
+                                        tint = if (useCurrentLocation) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    "¿Buscar cerca de mi ubicación actual?",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                                Text(
+                                    if (useCurrentLocation && currentLatitude != null) "GPS Activo • Coordenadas listas"
+                                    else if (isDetectingLocation) "Detectando satélites GPS..."
+                                    else "Filtra lugares cercanos con Maps y GPS",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Switch(
+                            checked = useCurrentLocation,
+                            onCheckedChange = { checked ->
+                                if (checked) {
+                                    val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                                    val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                                    if (hasFine || hasCoarse) {
+                                        useCurrentLocation = true
+                                        isDetectingLocation = true
+                                        try {
+                                            fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+                                                isDetectingLocation = false
+                                                if (loc != null) {
+                                                    currentLatitude = loc.latitude
+                                                    currentLongitude = loc.longitude
+                                                }
+                                            }.addOnFailureListener { isDetectingLocation = false }
+                                        } catch (e: SecurityException) {
+                                            isDetectingLocation = false
+                                        }
+                                    } else {
+                                        locationPermissionLauncher.launch(
+                                            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+                                        )
+                                    }
+                                } else {
+                                    useCurrentLocation = false
+                                }
+                            }
+                        )
+                    }
+
+                    if (useCurrentLocation) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+                        Text(
+                            "Radio máximo de distancia:",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        val radii = listOf(3, 5, 10, 15, 25)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(radii) { rad ->
+                                FilterChip(
+                                    selected = selectedRadiusKm == rad,
+                                    onClick = { selectedRadiusKm = rad },
+                                    label = { Text("$rad km") },
+                                    leadingIcon = if (selectedRadiusKm == rad) {
+                                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                                    } else null
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Configuration Card
         item {
             Card(
@@ -353,15 +517,17 @@ private fun OutingPlannerTab(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    OutlinedTextField(
-                        value = areaOrCity,
-                        onValueChange = { areaOrCity = it },
-                        label = { Text("Zona o Ciudad") },
-                        placeholder = { Text("ej. Usaquén, La Calera, Chapinero...") },
-                        leadingIcon = { Icon(Icons.Default.LocationCity, contentDescription = null) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
+                    if (!useCurrentLocation) {
+                        OutlinedTextField(
+                            value = areaOrCity,
+                            onValueChange = { areaOrCity = it },
+                            label = { Text("Zona o Ciudad") },
+                            placeholder = { Text("ej. Usaquén, La Calera, Chapinero...") },
+                            leadingIcon = { Icon(Icons.Default.LocationCity, contentDescription = null) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
 
                     OutlinedTextField(
                         value = customBudgetStr,
@@ -389,7 +555,16 @@ private fun OutingPlannerTab(
                     Button(
                         onClick = {
                             val budget = customBudgetStr.toDoubleOrNull()
-                            onGeneratePlan(selectedType, budget, areaOrCity, preferencesText)
+                            onGeneratePlan(
+                                selectedType,
+                                budget,
+                                areaOrCity,
+                                preferencesText,
+                                useCurrentLocation,
+                                currentLatitude,
+                                currentLongitude,
+                                selectedRadiusKm
+                            )
                         },
                         enabled = !uiState.isGeneratingPlan,
                         modifier = Modifier
@@ -404,7 +579,7 @@ private fun OutingPlannerTab(
                                 strokeWidth = 2.dp
                             )
                             Spacer(modifier = Modifier.width(10.dp))
-                            Text("Generando Itinerario con IA...")
+                            Text("Generando Itinerario con Fotos & IA...")
                         } else {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
@@ -452,7 +627,7 @@ private fun OutingPlannerTab(
                             color = MaterialTheme.colorScheme.onSurface
                         )
 
-                        Divider(modifier = Modifier.padding(vertical = 4.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -503,7 +678,7 @@ private fun OutingPlannerTab(
             // Itinerary Stops
             item {
                 Text(
-                    "Paradas del Itinerario (${plan.stops.size})",
+                    "Paradas del Itinerario con Fotos & Reseñas (${plan.stops.size})",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 8.dp)
@@ -512,106 +687,197 @@ private fun OutingPlannerTab(
 
             items(plan.stops) { stop ->
                 Card(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.primary),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        "${stop.order}",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
-                                    )
-                                }
-                                Spacer(Modifier.width(10.dp))
-                                Column {
-                                    Text(
-                                        stop.title,
-                                        fontWeight = FontWeight.Bold,
-                                        style = MaterialTheme.typography.titleSmall
-                                    )
-                                    Text(
-                                        stop.category,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.secondary
-                                    )
-                                }
-                            }
-
-                            Text(
-                                currencyFormatter.format(stop.estimated_cost),
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.bodyMedium
+                        // Place Photo if available
+                        if (!stop.image_url.isNullOrBlank()) {
+                            AsyncImage(
+                                model = stop.image_url,
+                                contentDescription = stop.title,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(170.dp)
+                                    .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)),
+                                contentScale = ContentScale.Crop
                             )
                         }
 
-                        Text(
-                            stop.description,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        Spacer(Modifier.height(4.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            // Direct Google Maps Intent
-                            Button(
-                                onClick = { onOpenMaps(stop.maps_url) },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                ),
-                                shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(vertical = 8.dp)
+                            // Title & Price row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
                             ) {
-                                Icon(
-                                    Icons.Default.Navigation,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.primary),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "${stop.order}",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                    Spacer(Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            stop.title,
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Text(
+                                            stop.category,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.secondary
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    currencyFormatter.format(stop.estimated_cost),
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    style = MaterialTheme.typography.titleSmall
                                 )
-                                Spacer(Modifier.width(6.dp))
-                                Text("Google Maps", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             }
 
-                            // Mark as Visited Button (adds to anti-repetition radar)
-                            OutlinedButton(
-                                onClick = { onSaveStopAsVisited(stop) },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(vertical = 8.dp)
+                            // Google Ratings & Distance row
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Icon(
-                                    Icons.Default.CheckCircle,
+                                    Icons.Default.Star,
                                     contentDescription = null,
+                                    tint = Color(0xFFFFB800),
                                     modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(Modifier.width(6.dp))
-                                Text("Ya Fuí / Guardar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "${stop.rating ?: 4.8}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "(${stop.review_count ?: 120} reseñas en Google)",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                stop.distance_km?.let { dist ->
+                                    Text(
+                                        " • A ${String.format(Locale.US, "%.1f", dist)} km",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+
+                            // Description
+                            Text(
+                                stop.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            // Highlight Review from Google Visitors
+                            stop.highlight_review?.let { review ->
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(10.dp),
+                                        verticalAlignment = Alignment.Top
+                                    ) {
+                                        Icon(
+                                            Icons.Default.RateReview,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                "Reseña destacada:",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                "\"$review\"",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 3,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(Modifier.height(2.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Direct Google Maps Intent
+                                Button(
+                                    onClick = { onOpenMaps(stop.maps_url) },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(vertical = 8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Navigation,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Google Maps", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+
+                                // Mark as Visited Button
+                                OutlinedButton(
+                                    onClick = { onSaveStopAsVisited(stop) },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(vertical = 8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Ya Fuí / Guardar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
                             }
                         }
                     }

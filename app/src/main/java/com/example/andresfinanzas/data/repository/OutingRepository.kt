@@ -49,13 +49,21 @@ class OutingRepository @Inject constructor(
         outingType: String,
         budget: Double?,
         areaOrCity: String,
-        preferences: String?
+        preferences: String?,
+        useCurrentLocation: Boolean = false,
+        latitude: Double? = null,
+        longitude: Double? = null,
+        radiusKm: Int? = 5
     ): OutingPlanResponseRemote = withContext(Dispatchers.IO) {
         val request = OutingPlanRequestRemote(
             outing_type = outingType,
             budget = budget,
             area_or_city = areaOrCity,
-            preferences = preferences
+            preferences = preferences,
+            use_current_location = useCurrentLocation,
+            latitude = latitude,
+            longitude = longitude,
+            radius_km = radiusKm
         )
         outingApi.generatePlan(request)
     }
