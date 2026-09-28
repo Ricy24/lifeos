@@ -21,8 +21,8 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    // Base URL for Render backend
-    private const val BASE_URL = "https://lifeos-finance-api.onrender.com/api/v1/"
+    // Base URL with HTTPS via DuckDNS
+    private const val BASE_URL = "https://lifeosandres.duckdns.org/api/v1/"
 
     @Provides
     @Singleton

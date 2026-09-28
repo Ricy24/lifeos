@@ -68,14 +68,19 @@ fi
 
 # 6. Levantar contenedores
 echo "📦 Construyendo y levantando contenedores Docker..."
-docker compose down || true
-docker compose up -d --build
+DOCKER_CMD="docker compose"
+if ! docker info >/dev/null 2>&1; then
+    DOCKER_CMD="sudo docker compose"
+fi
+
+$DOCKER_CMD down || true
+$DOCKER_CMD up -d --build
 
 echo "⏳ Esperando 10 segundos a que los servicios inicien..."
 sleep 10
 
 # 7. Verificar estado de los contenedores
-docker compose ps
+$DOCKER_CMD ps
 
 # 8. Obtener IP pública
 PUBLIC_IP=$(curl -s https://api.ipify.org || echo "TU_IP_PUBLICA")
