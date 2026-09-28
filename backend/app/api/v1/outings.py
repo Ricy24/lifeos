@@ -50,7 +50,7 @@ async def generate_outing_plan(
     total_balance = sum(float(a.balance) for a in accounts if a.include_in_total)
 
     debts_res = await db.execute(
-        select(Debt).where(Debt.user_id == current_user.id, Debt.status == DebtStatus.ACTIVE)
+        select(Debt).where(Debt.user_id == current_user.id, Debt.status != DebtStatus.PAID)
     )
     debts = debts_res.scalars().all()
     total_debt = sum(float(d.remaining_amount) for d in debts)
