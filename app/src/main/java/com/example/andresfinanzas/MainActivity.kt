@@ -217,7 +217,8 @@ fun AppNavigation(
                             accountToEdit = acc
                             showAddAccountDialog = true
                         },
-                        onToggleTheme = onToggleTheme
+                        onToggleTheme = onToggleTheme,
+                        onOpenOutings = { currentScreen = "outings" }
                     )
                 }
 
@@ -243,6 +244,12 @@ fun AppNavigation(
                     )
                 }
 
+                "outings" -> {
+                    com.example.andresfinanzas.ui.outings.OutingScreen(
+                        onBack = { currentScreen = "dashboard" }
+                    )
+                }
+
                 "goals_debts" -> {
                     Column(modifier = Modifier.fillMaxSize()) {
                         TabRow(
@@ -253,17 +260,22 @@ fun AppNavigation(
                             Tab(
                                 selected = selectedGoalsTab == 0,
                                 onClick = { selectedGoalsTab = 0 },
-                                text = { Text("Metas de Ahorro", fontWeight = FontWeight.Bold) }
+                                text = { Text("Metas", fontWeight = FontWeight.Bold) }
                             )
                             Tab(
                                 selected = selectedGoalsTab == 1,
                                 onClick = { selectedGoalsTab = 1 },
-                                text = { Text("Control de Deudas", fontWeight = FontWeight.Bold) }
+                                text = { Text("Deudas", fontWeight = FontWeight.Bold) }
                             )
                             Tab(
                                 selected = selectedGoalsTab == 2,
                                 onClick = { selectedGoalsTab = 2 },
                                 text = { Text("Wishlist", fontWeight = FontWeight.Bold) }
+                            )
+                            Tab(
+                                selected = selectedGoalsTab == 3,
+                                onClick = { selectedGoalsTab = 3 },
+                                text = { Text("Citas & Rutas 📍", fontWeight = FontWeight.Bold) }
                             )
                         }
 
@@ -274,6 +286,9 @@ fun AppNavigation(
                                 onBack = { currentScreen = "dashboard" },
                                 sharedUrl = sharedText,
                                 onSharedUrlConsumed = onSharedTextConsumed
+                            )
+                            3 -> com.example.andresfinanzas.ui.outings.OutingScreen(
+                                onBack = { currentScreen = "dashboard" }
                             )
                         }
                     }

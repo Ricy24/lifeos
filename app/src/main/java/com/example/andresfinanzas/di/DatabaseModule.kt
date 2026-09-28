@@ -105,6 +105,23 @@ object DatabaseModule {
         }
     }
 
+    private val migration5To6 = object : Migration(5, 6) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("""CREATE TABLE IF NOT EXISTS visited_places (
+                id TEXT NOT NULL PRIMARY KEY,
+                name TEXT NOT NULL,
+                category TEXT NOT NULL,
+                addressOrArea TEXT NOT NULL,
+                rating INTEGER NOT NULL,
+                averageCost REAL NOT NULL,
+                notes TEXT,
+                mapsUrl TEXT,
+                visitedDate INTEGER NOT NULL,
+                createdAt INTEGER NOT NULL
+            )""")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideLifeOSDatabase(
@@ -114,7 +131,7 @@ object DatabaseModule {
             context,
             LifeOSDatabase::class.java,
             "lifeos_finance.db"
-        ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5)
+        ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6)
          .fallbackToDestructiveMigration()
          .build()
     }
@@ -152,5 +169,10 @@ object DatabaseModule {
     @Provides
     fun provideMotorcycleDao(database: LifeOSDatabase): com.example.andresfinanzas.data.local.dao.MotorcycleDao {
         return database.motorcycleDao()
+    }
+
+    @Provides
+    fun provideVisitedPlaceDao(database: LifeOSDatabase): com.example.andresfinanzas.data.local.dao.VisitedPlaceDao {
+        return database.visitedPlaceDao()
     }
 }

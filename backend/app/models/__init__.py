@@ -18,6 +18,7 @@ from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.models.work_session import WorkSession
 from app.models.motorcycle import Motorcycle
+from app.models.visited_place import VisitedPlace
 
 __all__ = [
     "Account",
@@ -41,4 +42,5 @@ __all__ = [
     "User",
     "WorkSession",
     "Motorcycle",
+    "VisitedPlace",
 ]

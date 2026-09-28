@@ -100,4 +100,10 @@ object NetworkModule {
     fun provideMotorcycleApi(retrofit: Retrofit): com.example.andresfinanzas.data.remote.api.MotorcycleApi {
         return retrofit.create(com.example.andresfinanzas.data.remote.api.MotorcycleApi::class.java)
     }
+
+    @Provides
+    @Singleton
+    fun provideOutingApi(retrofit: Retrofit): com.example.andresfinanzas.data.remote.api.OutingApi {
+        return retrofit.create(com.example.andresfinanzas.data.remote.api.OutingApi::class.java)
+    }
 }
