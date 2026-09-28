@@ -15,6 +15,8 @@ import com.example.andresfinanzas.data.local.entities.TransactionEntity
 import com.example.andresfinanzas.data.local.entities.WishlistEntity
 import com.example.andresfinanzas.data.local.entities.WorkSessionEntity
 import com.example.andresfinanzas.data.local.dao.WorkSessionDao
+import com.example.andresfinanzas.data.local.dao.MotorcycleDao
+import com.example.andresfinanzas.data.local.entities.MotorcycleEntity
 
 @Database(
     entities = [
@@ -23,9 +25,10 @@ import com.example.andresfinanzas.data.local.dao.WorkSessionDao
         DebtEntity::class,
         GoalEntity::class,
         WishlistEntity::class,
-        WorkSessionEntity::class
+        WorkSessionEntity::class,
+        MotorcycleEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -36,4 +39,5 @@ abstract class LifeOSDatabase : RoomDatabase() {
     abstract fun goalDao(): GoalDao
     abstract fun wishlistDao(): WishlistDao
     abstract fun workSessionDao(): WorkSessionDao
+    abstract fun motorcycleDao(): MotorcycleDao
 }

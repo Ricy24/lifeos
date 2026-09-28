@@ -168,6 +168,18 @@ fun AppNavigation(
                         indicatorColor = MaterialTheme.colorScheme.primaryContainer
                     )
                 )
+
+                NavigationBarItem(
+                    selected = currentScreen == "motorcycle",
+                    onClick = { currentScreen = "motorcycle" },
+                    icon = { Icon(Icons.Default.TwoWheeler, contentDescription = "Mi Moto") },
+                    label = { Text("Mi Moto", fontWeight = FontWeight.SemiBold) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                )
             }
         },
         floatingActionButton = {
@@ -222,6 +234,12 @@ fun AppNavigation(
                         transactions = dashboardUiState.allTransactions,
                         totalBalance = dashboardUiState.totalBalance,
                         netWorth = dashboardUiState.netWorth
+                    )
+                }
+
+                "motorcycle" -> {
+                    com.example.andresfinanzas.ui.motorcycle.MotorcycleScreen(
+                        onBack = { currentScreen = "dashboard" }
                     )
                 }
 

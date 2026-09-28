@@ -80,6 +80,31 @@ object DatabaseModule {
         }
     }
 
+    private val migration4To5 = object : Migration(4, 5) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("""CREATE TABLE IF NOT EXISTS motorcycles (
+                id TEXT NOT NULL PRIMARY KEY,
+                name TEXT NOT NULL,
+                model TEXT NOT NULL,
+                currentMileage INTEGER NOT NULL,
+                oilChangeInterval INTEGER NOT NULL,
+                lastOilChangeMileage INTEGER NOT NULL,
+                frontTireMileage INTEGER NOT NULL,
+                frontTireLifeKm INTEGER NOT NULL,
+                rearTireMileage INTEGER NOT NULL,
+                rearTireLifeKm INTEGER NOT NULL,
+                brakePadsMileage INTEGER NOT NULL,
+                brakePadsLifeKm INTEGER NOT NULL,
+                chainMaintenanceMileage INTEGER NOT NULL,
+                chainMaintenanceInterval INTEGER NOT NULL,
+                soatExpiryDate INTEGER NOT NULL,
+                technoExpiryDate INTEGER NOT NULL,
+                costPerKm REAL NOT NULL,
+                lastUpdated INTEGER NOT NULL
+            )""")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideLifeOSDatabase(
@@ -89,7 +114,9 @@ object DatabaseModule {
             context,
             LifeOSDatabase::class.java,
             "lifeos_finance.db"
-        ).addMigrations(migration1To2, migration2To3, migration3To4).build()
+        ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5)
+         .fallbackToDestructiveMigration()
+         .build()
     }
 
     @Provides
@@ -120,5 +147,10 @@ object DatabaseModule {
     @Provides
     fun provideWorkSessionDao(database: LifeOSDatabase): WorkSessionDao {
         return database.workSessionDao()
+    }
+
+    @Provides
+    fun provideMotorcycleDao(database: LifeOSDatabase): com.example.andresfinanzas.data.local.dao.MotorcycleDao {
+        return database.motorcycleDao()
     }
 }
