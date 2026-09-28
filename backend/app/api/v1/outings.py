@@ -531,21 +531,22 @@ async def _generate_with_ai_or_places(
                 logger.warning(f"[OUTINGS] PATH A: No quality places found after filtering. raw_results={len(nearby_results)}, filtered={len(filtered)}, within_radius={len(places_with_dist)}, quality={len(quality_places) if 'quality_places' in dir() else 'N/A'}")
 
         # PATH B: Gemini AI Generation
-        logger.info(f"[OUTINGS] → PATH B: Trying Gemini AI (key={'YES' if settings.GEMINI_API_KEY else 'NO'})")
+        logger.warning(f"[OUTINGS] → PATH B: Trying Gemini AI (key={'YES' if settings.GEMINI_API_KEY else 'NO'})")
         if settings.GEMINI_API_KEY:
-            try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
-                
-                location_instructions = ""
-                if use_location and latitude is not None and longitude is not None:
-                    location_instructions = f"""
+            for model_name in ["gemini-1.5-flash", "gemini-2.0-flash"]:
+                try:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={settings.GEMINI_API_KEY}"
+                    
+                    location_instructions = ""
+                    if use_location and latitude is not None and longitude is not None:
+                        location_instructions = f"""
 - UBICACIÓN GPS EXACTA DEL USUARIO: Latitud {latitude}, Longitud {longitude}
 - RADIO MÁXIMO DE BÚSQUEDA: {radius_km} km a la redonda
-- REQUISITO CRÍTICO DE PROXIMIDAD: Los lugares DEBEN existir y estar ubicados a menos de {radius_km} km de estas coordenadas GPS.
+- REQUISITO CRÍTICO DE PROXIMIDAD: Los lugares DEBEN existir y estar ubicados en la ciudad/zona o a menos de {radius_km} km de estas coordenadas GPS.
 """
 
-                prompt = f"""Eres el planificador experto de salidas, ocio y citas de LifeOS.
-Diseña un itinerario de salida de 2 a 3 paradas específicas y reales para:
+                    prompt = f"""Eres el planificador experto de salidas, ocio y citas de LifeOS.
+Diseña un itinerario de salida de 3 a 5 paradas o lugares específicos y reales para:
 - Tipo de salida: {outing_type}
 - Ciudad o Zona: {area}
 {location_instructions}
@@ -577,61 +578,63 @@ Responde ÚNICAMENTE con un JSON válido en este formato exacto (sin bloques de 
   "financial_advice": "Consejo financiero sobre el gasto de esta salida"
 }}
 """
-                res = await client.post(url, json={"contents": [{"parts": [{"text": prompt}]}]})
-                if res.status_code == 200:
-                    raw = res.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    if raw.startswith("```"):
-                        import re
-                        raw = re.sub(r"^```(?:json)?\s*", "", raw)
-                        raw = re.sub(r"\s*```$", "", raw)
-                    data = json.loads(raw)
-                    
-                    stops = []
-                    total_cost = 0.0
-                    for s in data.get("stops", []):
-                        cost = float(s.get("estimated_cost", 0))
-                        total_cost += cost
-                        query = s.get("maps_query") or s.get("title", "")
-                        maps_url = f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(query)}"
+                    res = await client.post(url, json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.7}})
+                    if res.status_code == 200:
+                        raw = res.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                        if raw.startswith("```"):
+                            import re
+                            raw = re.sub(r"^```(?:json)?\s*", "", raw)
+                            raw = re.sub(r"\s*```$", "", raw)
+                        data = json.loads(raw)
                         
-                        # Fetch Google Places data if key available
-                        places_info = await _fetch_google_places_info(client, query, maps_api_key)
-                        image_url = places_info.get("photo_url") or _get_category_photo(s.get("category", ""), s.get("title", ""))
-                        rating = float(places_info.get("rating") or s.get("rating", 4.8))
-                        review_count = int(places_info.get("review_count") or s.get("review_count", 150))
+                        stops = []
+                        total_cost = 0.0
+                        for s in data.get("stops", []):
+                            cost = float(s.get("estimated_cost", 0))
+                            total_cost += cost
+                            query = s.get("maps_query") or s.get("title", "")
+                            maps_url = f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(query)}"
+                            
+                            # Fallback photo if Google Places is disabled
+                            image_url = _get_category_photo(s.get("category", ""), s.get("title", ""))
+                            rating = float(s.get("rating") or 4.7)
+                            review_count = int(s.get("review_count") or 150)
+                            
+                            s_lat = s.get("latitude") or (latitude if latitude else 4.6097)
+                            s_lng = s.get("longitude") or (longitude if longitude else -74.0817)
+                            dist = float(s.get("distance_km")) if s.get("distance_km") is not None else (_haversine_distance_km(latitude, longitude, s_lat, s_lng) if latitude and longitude else None)
+                            
+                            stops.append(OutingStop(
+                                order=int(s.get("order", len(stops) + 1)),
+                                title=s.get("title", "Lugar"),
+                                category=s.get("category", "Ocio"),
+                                estimated_cost=cost,
+                                description=s.get("description", ""),
+                                maps_query=query,
+                                maps_url=maps_url,
+                                image_url=image_url,
+                                rating=rating,
+                                review_count=review_count,
+                                highlight_review=s.get("highlight_review", "Muy recomendado por sus visitantes."),
+                                distance_km=round(dist, 1) if dist is not None else None,
+                                latitude=s_lat,
+                                longitude=s_lng,
+                                address=s.get("address", area)
+                            ))
                         
-                        s_lat = s.get("latitude") or (latitude if latitude else 4.6097)
-                        s_lng = s.get("longitude") or (longitude if longitude else -74.0817)
-                        dist = float(s.get("distance_km")) if s.get("distance_km") is not None else (_haversine_distance_km(latitude, longitude, s_lat, s_lng) if latitude and longitude else None)
-                        
-                        stops.append(OutingStop(
-                            order=int(s.get("order", 1)),
-                            title=s.get("title", "Lugar"),
-                            category=s.get("category", "Ocio"),
-                            estimated_cost=cost,
-                            description=s.get("description", ""),
-                            maps_query=query,
-                            maps_url=maps_url,
-                            image_url=image_url,
-                            rating=rating,
-                            review_count=review_count,
-                            highlight_review=s.get("highlight_review", "Muy recomendado por sus visitantes."),
-                            distance_km=dist,
-                            latitude=s_lat,
-                            longitude=s_lng,
-                            address=s.get("address", area)
-                        ))
-                    
-                    return OutingPlanResponse(
-                        title=data.get("title", f"Plan {outing_type}"),
-                        summary=data.get("summary", "Salida planificada inteligentemente con IA."),
-                        total_estimated_cost=total_cost,
-                        safe_budget_available=safe_budget,
-                        stops=stops,
-                        financial_advice=data.get("financial_advice", "Disfruta dentro del presupuesto seguro.")
-                    )
-            except Exception as e:
-                logger.error(f"Error calling Gemini for outing plan: {e}")
+                        logger.warning(f"[OUTINGS] Gemini successfully generated {len(stops)} places via {model_name}!")
+                        return OutingPlanResponse(
+                            title=data.get("title", f"Plan {outing_type}"),
+                            summary=data.get("summary", "Salida planificada inteligentemente con IA."),
+                            total_estimated_cost=total_cost,
+                            safe_budget_available=safe_budget,
+                            stops=stops,
+                            financial_advice=data.get("financial_advice", "Disfruta dentro del presupuesto seguro.")
+                        )
+                    else:
+                        logger.warning(f"[OUTINGS] Gemini model {model_name} HTTP {res.status_code}: {res.text}")
+                except Exception as e:
+                    logger.warning(f"[OUTINGS] Error calling Gemini {model_name}: {e}")
 
     # PATH C: Fallback Curated Colombian Plans
     logger.warning(f"[OUTINGS] → PATH C: FALLBACK plan (no Google Places results, no Gemini). This produces GENERIC names!")
